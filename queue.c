@@ -1,29 +1,9 @@
-/*++
-
-Copyright (c) Microsoft Corporation, All Rights Reserved
-
-Module Name:
-
-    Queue.c
-
-Abstract:
-
-    This file implements the I/O queue interface and performs
-    the read/write/ioctl operations.
-
-Environment:
-
-    Windows Driver Framework
-
---*/
-
-
 #include "internal.h"
 
 NTSTATUS
 QueueCreate(
     _In_  PDEVICE_CONTEXT   DeviceContext
-    )
+)
 {
     NTSTATUS                status;
     WDFDEVICE               device = DeviceContext->Device;
@@ -32,29 +12,25 @@ QueueCreate(
     WDFQUEUE                queue;
     PQUEUE_CONTEXT          queueContext;
 
-    //
-    // Create the default queue
-    //
-
     WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(
-                            &queueConfig,
-                            WdfIoQueueDispatchParallel);
+        &queueConfig,
+        WdfIoQueueDispatchParallel);
 
-    queueConfig.EvtIoRead           = EvtIoRead;
-    queueConfig.EvtIoWrite          = EvtIoWrite;
-    queueConfig.EvtIoDeviceControl  = EvtIoDeviceControl;
+    queueConfig.EvtIoRead = vSeriousEvtIoRead;
+    queueConfig.EvtIoWrite = vSeriousEvtIoWrite;
+    queueConfig.EvtIoDeviceControl = vSeriousEvtIoDeviceControl;
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(
-                            &queueAttributes,
-                            QUEUE_CONTEXT);
+        &queueAttributes,
+        QUEUE_CONTEXT);
 
     status = WdfIoQueueCreate(
-                            device,
-                            &queueConfig,
-                            &queueAttributes,
-                            &queue);
+        device,
+        &queueConfig,
+        &queueAttributes,
+        &queue);
 
-    if( !NT_SUCCESS(status) ) {
+    if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR,
             "Error: WdfIoQueueCreate failed 0x%x", status);
         return status;
@@ -71,16 +47,16 @@ QueueCreate(
     //
 
     WDF_IO_QUEUE_CONFIG_INIT(
-                            &queueConfig,
-                            WdfIoQueueDispatchManual);
+        &queueConfig,
+        WdfIoQueueDispatchManual);
 
     status = WdfIoQueueCreate(
-                            device,
-                            &queueConfig,
-                            WDF_NO_OBJECT_ATTRIBUTES,
-                            &queue);
+        device,
+        &queueConfig,
+        WDF_NO_OBJECT_ATTRIBUTES,
+        &queue);
 
-    if( !NT_SUCCESS(status) ) {
+    if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR,
             "Error: WdfIoQueueCreate manual queue failed 0x%x", status);
         return status;
@@ -93,16 +69,16 @@ QueueCreate(
     //
 
     WDF_IO_QUEUE_CONFIG_INIT(
-                            &queueConfig,
-                            WdfIoQueueDispatchManual);
+        &queueConfig,
+        WdfIoQueueDispatchManual);
 
     status = WdfIoQueueCreate(
-                            device,
-                            &queueConfig,
-                            WDF_NO_OBJECT_ATTRIBUTES,
-                            &queue);
+        device,
+        &queueConfig,
+        WDF_NO_OBJECT_ATTRIBUTES,
+        &queue);
 
-    if( !NT_SUCCESS(status) ) {
+    if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR,
             "Error: WdfIoQueueCreate manual queue failed 0x%x", status);
         return status;
@@ -111,8 +87,8 @@ QueueCreate(
     queueContext->WaitMaskQueue = queue;
 
     RingBufferInitialize(&queueContext->RingBuffer,
-                            queueContext->Buffer,
-                            sizeof(queueContext->Buffer));
+        queueContext->Buffer,
+        sizeof(queueContext->Buffer));
 
     return status;
 }
@@ -123,21 +99,21 @@ RequestCopyFromBuffer(
     _In_  WDFREQUEST        Request,
     _In_  PVOID             SourceBuffer,
     _In_  size_t            NumBytesToCopyFrom
-    )
+)
 {
     NTSTATUS                status;
     WDFMEMORY               memory;
 
     status = WdfRequestRetrieveOutputMemory(Request, &memory);
-    if( !NT_SUCCESS(status) ) {
+    if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR,
             "Error: WdfRequestRetrieveOutputMemory failed 0x%x", status);
         return status;
     }
 
     status = WdfMemoryCopyFromBuffer(memory, 0,
-                            SourceBuffer, NumBytesToCopyFrom);
-    if( !NT_SUCCESS(status) ) {
+        SourceBuffer, NumBytesToCopyFrom);
+    if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR,
             "Error: WdfMemoryCopyFromBuffer failed 0x%x", status);
         return status;
@@ -148,26 +124,27 @@ RequestCopyFromBuffer(
 }
 
 
+/* Utility function to retrieve value from req into a buffer*/
 NTSTATUS
 RequestCopyToBuffer(
     _In_  WDFREQUEST        Request,
     _In_  PVOID             DestinationBuffer,
     _In_  size_t            NumBytesToCopyTo
-    )
+)
 {
     NTSTATUS                status;
     WDFMEMORY               memory;
 
     status = WdfRequestRetrieveInputMemory(Request, &memory);
-    if( !NT_SUCCESS(status) ) {
+    if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR,
             "Error: WdfRequestRetrieveInputMemory failed 0x%x", status);
         return status;
     }
 
     status = WdfMemoryCopyToBuffer(memory, 0,
-                            DestinationBuffer, NumBytesToCopyTo);
-    if( !NT_SUCCESS(status) ) {
+        DestinationBuffer, NumBytesToCopyTo);
+    if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR,
             "Error: WdfMemoryCopyToBuffer failed 0x%x", status);
         return status;
@@ -178,22 +155,32 @@ RequestCopyToBuffer(
 
 
 VOID
-EvtIoDeviceControl(
+vSeriousEvtIoDeviceControl(
     _In_  WDFQUEUE          Queue,
     _In_  WDFREQUEST        Request,
     _In_  size_t            OutputBufferLength,
     _In_  size_t            InputBufferLength,
     _In_  ULONG             IoControlCode
-    )
+)
 {
     NTSTATUS                status;
     PQUEUE_CONTEXT          queueContext = GetQueueContext(Queue);
     PDEVICE_CONTEXT         deviceContext = queueContext->DeviceContext;
-    UNREFERENCED_PARAMETER  (OutputBufferLength);
-    UNREFERENCED_PARAMETER  (InputBufferLength);
+    UNREFERENCED_PARAMETER(OutputBufferLength);
+    UNREFERENCED_PARAMETER(InputBufferLength);
 
     Trace(TRACE_LEVEL_INFO,
         "EvtIoDeviceControl 0x%x", IoControlCode);
+
+    // If device is not active, return not_connected
+    // for other IOCTL calls
+    if (!deviceContext->Active && (
+        !IoControlCode == IOCTL_VSERIOUS_GET_ACTIVE ||
+        !IoControlCode == IOCTL_VSERIOUS_SET_ACTIVE)) {
+        status = STATUS_DEVICE_NOT_CONNECTED;
+        WdfRequestComplete(Request, status);
+        return;
+    }
 
     switch (IoControlCode)
     {
@@ -205,13 +192,13 @@ EvtIoDeviceControl(
         // actual hardware, we just store the baud rate and don't do
         // anything with it.
         //
-        SERIAL_BAUD_RATE baudRateBuffer = {0};
+        SERIAL_BAUD_RATE baudRateBuffer = { 0 };
 
         status = RequestCopyToBuffer(Request,
-                            &baudRateBuffer,
-                            sizeof(baudRateBuffer));
+            &baudRateBuffer,
+            sizeof(baudRateBuffer));
 
-        if( NT_SUCCESS(status) ) {
+        if (NT_SUCCESS(status)) {
             SetBaudRate(deviceContext, baudRateBuffer.BaudRate);
         };
         break;
@@ -219,13 +206,13 @@ EvtIoDeviceControl(
 
     case IOCTL_SERIAL_GET_BAUD_RATE:
     {
-        SERIAL_BAUD_RATE baudRateBuffer = {0};
+        SERIAL_BAUD_RATE baudRateBuffer = { 0 };
 
         baudRateBuffer.BaudRate = GetBaudRate(deviceContext);
 
         status = RequestCopyFromBuffer(Request,
-                            &baudRateBuffer,
-                            sizeof(baudRateBuffer));
+            &baudRateBuffer,
+            sizeof(baudRateBuffer));
         break;
     }
 
@@ -236,25 +223,25 @@ EvtIoDeviceControl(
         // actual hardware, we just store the modem control register
         // configuration and don't do anything with it.
         //
-        ULONG *modemControlRegister = GetModemControlRegisterPtr(deviceContext);
+        ULONG* modemControlRegister = GetModemControlRegisterPtr(deviceContext);
 
         ASSERT(modemControlRegister);
 
         status = RequestCopyToBuffer(Request,
-                            modemControlRegister,
-                            sizeof(ULONG));
+            modemControlRegister,
+            sizeof(ULONG));
         break;
     }
 
     case IOCTL_SERIAL_GET_MODEM_CONTROL:
     {
-        ULONG *modemControlRegister = GetModemControlRegisterPtr(deviceContext);
+        ULONG* modemControlRegister = GetModemControlRegisterPtr(deviceContext);
 
         ASSERT(modemControlRegister);
 
         status = RequestCopyFromBuffer(Request,
-                            modemControlRegister,
-                            sizeof(ULONG));
+            modemControlRegister,
+            sizeof(ULONG));
         break;
     }
 
@@ -265,62 +252,61 @@ EvtIoDeviceControl(
         // actual hardware, we just store the FIFO control register
         // configuration and don't do anything with it.
         //
-        ULONG *fifoControlRegister = GetFifoControlRegisterPtr(deviceContext);
+        ULONG* fifoControlRegister = GetFifoControlRegisterPtr(deviceContext);
 
         ASSERT(fifoControlRegister);
 
         status = RequestCopyToBuffer(Request,
-                            fifoControlRegister,
-                            sizeof(ULONG));
+            fifoControlRegister,
+            sizeof(ULONG));
         break;
     }
 
     case IOCTL_SERIAL_GET_LINE_CONTROL:
     {
         status = QueueProcessGetLineControl(
-                            queueContext,
-                            Request);
+            queueContext,
+            Request);
         break;
     }
-
 
     case IOCTL_SERIAL_SET_LINE_CONTROL:
     {
         status = QueueProcessSetLineControl(
-                            queueContext,
-                            Request);
+            queueContext,
+            Request);
         break;
     }
 
     case IOCTL_SERIAL_GET_TIMEOUTS:
     {
-        SERIAL_TIMEOUTS timeoutValues = {0};
+        SERIAL_TIMEOUTS timeoutValues = { 0 };
 
         status = RequestCopyFromBuffer(Request,
-                            (void*) &timeoutValues,
-                            sizeof(timeoutValues));
+            (void*)&timeoutValues,
+            sizeof(timeoutValues));
         break;
     }
 
     case IOCTL_SERIAL_SET_TIMEOUTS:
     {
-        SERIAL_TIMEOUTS timeoutValues = {0};
+        SERIAL_TIMEOUTS timeoutValues = { 0 };
 
         status = RequestCopyToBuffer(Request,
-                            (void*) &timeoutValues,
-                            sizeof(timeoutValues));
+            (void*)&timeoutValues,
+            sizeof(timeoutValues));
 
-        if( NT_SUCCESS(status) )
+        if (NT_SUCCESS(status))
         {
-            if ((timeoutValues.ReadIntervalTimeout        == MAXULONG) &&
+            if ((timeoutValues.ReadIntervalTimeout == MAXULONG) &&
                 (timeoutValues.ReadTotalTimeoutMultiplier == MAXULONG) &&
-                (timeoutValues.ReadTotalTimeoutConstant   == MAXULONG))
+                (timeoutValues.ReadTotalTimeoutConstant == MAXULONG))
             {
                 status = STATUS_INVALID_PARAMETER;
             }
         }
 
-        if( NT_SUCCESS(status) ) {
+        if (NT_SUCCESS(status)) {
             SetTimeouts(deviceContext, timeoutValues);
         }
 
@@ -340,12 +326,12 @@ EvtIoDeviceControl(
         WDFREQUEST savedRequest;
 
         status = WdfIoQueueRetrieveNextRequest(
-                            queueContext->WaitMaskQueue,
-                            &savedRequest);
+            queueContext->WaitMaskQueue,
+            &savedRequest);
 
         if (NT_SUCCESS(status)) {
             WdfRequestComplete(savedRequest,
-                            STATUS_UNSUCCESSFUL);
+                STATUS_UNSUCCESSFUL);
         }
 
         //
@@ -353,10 +339,10 @@ EvtIoDeviceControl(
         // care of cancelling them when the app exits
         //
         status = WdfRequestForwardToIoQueue(
-                            Request,
-                            queueContext->WaitMaskQueue);
+            Request,
+            queueContext->WaitMaskQueue);
 
-        if( !NT_SUCCESS(status) ) {
+        if (!NT_SUCCESS(status)) {
             Trace(TRACE_LEVEL_ERROR,
                 "Error: WdfRequestForwardToIoQueue failed 0x%x", status);
             WdfRequestComplete(Request, status);
@@ -379,16 +365,16 @@ EvtIoDeviceControl(
         WDFREQUEST savedRequest;
 
         status = WdfIoQueueRetrieveNextRequest(
-                            queueContext->WaitMaskQueue,
-                            &savedRequest);
+            queueContext->WaitMaskQueue,
+            &savedRequest);
 
         if (NT_SUCCESS(status)) {
 
             ULONG eventMask = 0;
             status = RequestCopyFromBuffer(
-                            savedRequest,
-                            &eventMask,
-                            sizeof(eventMask));
+                savedRequest,
+                &eventMask,
+                sizeof(eventMask));
 
             WdfRequestComplete(savedRequest, status);
         }
@@ -400,6 +386,40 @@ EvtIoDeviceControl(
         break;
     }
 
+    case IOCTL_VSERIOUS_SET_ACTIVE:
+    {
+        BOOLEAN activeFlag = FALSE;
+        status = RequestCopyToBuffer(Request, &activeFlag, sizeof(activeFlag));
+        if (!NT_SUCCESS(status)) {
+            WdfRequestComplete(Request, status);
+            break;
+        }
+
+        if (deviceContext->Active != activeFlag) {
+
+            deviceContext->Active = (activeFlag != FALSE);
+
+            if (deviceContext->Active) {
+                DECLARE_UNICODE_STRING_SIZE(comPort, 10);
+                status = DevicePlugIn(deviceContext, &comPort);
+            }
+            else {
+                status = DeviceUnplug(deviceContext);
+            }
+        }
+        else {
+            status = STATUS_SUCCESS;
+        }
+
+        WdfRequestComplete(Request, status);
+        break;
+    }
+    case IOCTL_VSERIOUS_GET_ACTIVE:
+    {
+        BOOLEAN active = deviceContext->Active;
+        status = RequestCopyFromBuffer(Request, &active, sizeof(active));
+        break;
+    }
     case IOCTL_SERIAL_SET_QUEUE_SIZE:
     case IOCTL_SERIAL_SET_DTR:
     case IOCTL_SERIAL_SET_RTS:
@@ -422,78 +442,76 @@ EvtIoDeviceControl(
         break;
     }
 
-    //
-    // complete the request
-    //
     WdfRequestComplete(Request, status);
 }
 
 
 VOID
-EvtIoWrite(
+vSeriousEvtIoWrite(
     _In_  WDFQUEUE          Queue,
     _In_  WDFREQUEST        Request,
     _In_  size_t            Length
-    )
+)
 {
     NTSTATUS                status;
     PQUEUE_CONTEXT          queueContext = GetQueueContext(Queue);
+    PDEVICE_CONTEXT         deviceContext;
     WDFMEMORY               memory;
     WDFREQUEST              savedRequest;
     size_t                  availableData = 0;
 
     Trace(TRACE_LEVEL_INFO,
-            "EvtIoWrite 0x%p", Request);
+        "EvtIoWrite 0x%p", Request);
+
+    deviceContext = queueContext->DeviceContext;
+
+    if (!deviceContext->Active) {
+        // reject the request
+        WdfRequestComplete(Request, STATUS_DEVICE_NOT_CONNECTED);
+        return;
+    }
 
     status = WdfRequestRetrieveInputMemory(Request, &memory);
-    if( !NT_SUCCESS(status) ) {
+    if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR,
             "Error: WdfRequestRetrieveInputMemory failed 0x%x", status);
         return;
     }
 
-    //
-    // Process input
-    //
     status = QueueProcessWriteBytes(
-                            queueContext,
-                            (PUCHAR)WdfMemoryGetBuffer(memory, NULL),
-                            Length);
-    if( !NT_SUCCESS(status) ) {
+        queueContext,
+        (PUCHAR)WdfMemoryGetBuffer(memory, NULL),
+        Length);
+    if (!NT_SUCCESS(status)) {
         return;
     }
 
     WdfRequestCompleteWithInformation(Request, status, Length);
 
-    //
-    // Get the amount of data available in the ring buffer
-    //
     RingBufferGetAvailableData(
-                            &queueContext->RingBuffer,
-                            &availableData);
+        &queueContext->RingBuffer,
+        &availableData);
 
     if (availableData == 0) {
         return;
     }
-
-    //
-    // Continue with the next request, if there is one pending
-    //
-    for ( ; ; ) {
+    
+    // next request
+    for (; ; ) {
 
         status = WdfIoQueueRetrieveNextRequest(
-                            queueContext->ReadQueue,
-                            &savedRequest);
+            queueContext->ReadQueue,
+            &savedRequest);
 
         if (!NT_SUCCESS(status)) {
             break;
         }
 
         status = WdfRequestForwardToIoQueue(
-                            savedRequest,
-                            Queue);
+            savedRequest,
+            Queue);
 
-        if( !NT_SUCCESS(status) ) {
+        if (!NT_SUCCESS(status)) {
             Trace(TRACE_LEVEL_ERROR,
                 "Error: WdfRequestForwardToIoQueue failed 0x%x", status);
             WdfRequestComplete(savedRequest, status);
@@ -503,22 +521,31 @@ EvtIoWrite(
 
 
 VOID
-EvtIoRead(
+vSeriousEvtIoRead(
     _In_  WDFQUEUE          Queue,
     _In_  WDFREQUEST        Request,
     _In_  size_t            Length
-    )
+)
 {
     NTSTATUS                status;
     PQUEUE_CONTEXT          queueContext = GetQueueContext(Queue);
+    PDEVICE_CONTEXT         deviceContext;
     WDFMEMORY               memory;
     size_t                  bytesCopied = 0;
 
     Trace(TRACE_LEVEL_INFO,
-            "EvtIoRead 0x%p", Request);
+        "EvtIoRead 0x%p", Request);
+
+    deviceContext = queueContext->DeviceContext;
+
+    if (!deviceContext->Active) {
+        // reject the request
+        WdfRequestComplete(Request, STATUS_DEVICE_NOT_CONNECTED);
+        return;
+    }
 
     status = WdfRequestRetrieveOutputMemory(Request, &memory);
-    if( !NT_SUCCESS(status) ) {
+    if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR,
             "Error: WdfRequestRetrieveOutputMemory failed 0x%x", status);
         WdfRequestComplete(Request, status);
@@ -526,28 +553,22 @@ EvtIoRead(
     }
 
     status = RingBufferRead(&queueContext->RingBuffer,
-                            (BYTE*)WdfMemoryGetBuffer(memory, NULL),
-                            Length,
-                            &bytesCopied);
-    if( !NT_SUCCESS(status) ) {
+        (BYTE*)WdfMemoryGetBuffer(memory, NULL),
+        Length,
+        &bytesCopied);
+    if (!NT_SUCCESS(status)) {
         WdfRequestComplete(Request, status);
         return;
     }
 
     if (bytesCopied > 0) {
-        //
-        // Data was read from buffer succesfully
-        //
         WdfRequestCompleteWithInformation(Request, status, bytesCopied);
         return;
     }
     else {
-        //
-        // No data to read. Queue the request for later processing.
-        //
         status = WdfRequestForwardToIoQueue(Request,
-                            queueContext->ReadQueue);
-        if( !NT_SUCCESS(status) ) {
+            queueContext->ReadQueue);
+        if (!NT_SUCCESS(status)) {
             Trace(TRACE_LEVEL_ERROR,
                 "Error: WdfRequestForwardToIoQueue failed 0x%x", status);
             WdfRequestComplete(Request, status);
@@ -560,50 +581,30 @@ NTSTATUS
 QueueProcessWriteBytes(
     _In_  PQUEUE_CONTEXT    QueueContext,
     _In_reads_bytes_(Length)
-          PUCHAR            Characters,
+    PUCHAR            Characters,
     _In_  size_t            Length
-    )
-/*++
-Routine Description:
-
-    This function is called when the framework receives IRP_MJ_WRITE
-    requests from the system. The write event handler(FmEvtIoWrite) calls ProcessWriteBytes.
-    It parses the Characters passed in and looks for the  for sequences "AT" -ok  ,
-    "ATA" --CONNECT, ATD<number> -- CONNECT and sets the state of the device appropriately.
-    These bytes are placed in the read Buffer to be processed later since this device
-    works in a loopback fashion.
-
-Arguments:
-
-    Characters - Pointer to the write IRP's system buffer.
-
-    Length - Length of the IO operation
-                 The default property of the queue is to not dispatch
-                 zero lenght read & write requests to the driver and
-                 complete is with status success. So we will never get
-                 a zero length request.
---*/
+)
 {
     NTSTATUS                status = STATUS_SUCCESS;
     UCHAR                   currentCharacter;
-    UCHAR                   connectString[]  = "\r\nCONNECT\r\n";
+    UCHAR                   connectString[] = "\r\nCONNECT\r\n";
     UCHAR                   connectStringCch = ARRAY_SIZE(connectString) - 1;
-    UCHAR                   okString[]       = "\r\nOK\r\n";
-    UCHAR                   okStringCch      = ARRAY_SIZE(okString) - 1;
+    UCHAR                   okString[] = "\r\nOK\r\n";
+    UCHAR                   okStringCch = ARRAY_SIZE(okString) - 1;
 
     while (Length != 0) {
 
         currentCharacter = *(Characters++);
         Length--;
 
-        if(currentCharacter == '\0') {
+        if (currentCharacter == '\0') {
             continue;
         }
 
         status = RingBufferWrite(&QueueContext->RingBuffer,
-                            &currentCharacter,
-                            sizeof(currentCharacter));
-        if( !NT_SUCCESS(status) ) {
+            &currentCharacter,
+            sizeof(currentCharacter));
+        if (!NT_SUCCESS(status)) {
             return status;
         }
 
@@ -637,7 +638,7 @@ Arguments:
 
         case COMMAND_MATCH_STATE_GOT_T:
 
-            if (! QueueContext->IgnoreNextChar) {
+            if (!QueueContext->IgnoreNextChar) {
                 //
                 //  the last char was not a special char
                 //  check for CONNECT command
@@ -664,9 +665,9 @@ Arguments:
                     //  place <cr><lf>CONNECT<cr><lf>  in the buffer
                     //
                     status = RingBufferWrite(&QueueContext->RingBuffer,
-                            connectString,
-                            connectStringCch);
-                    if( !NT_SUCCESS(status) ) {
+                        connectString,
+                        connectStringCch);
+                    if (!NT_SUCCESS(status)) {
                         return status;
                     }
                     //
@@ -680,9 +681,9 @@ Arguments:
                     //  place <cr><lf>OK<cr><lf>  in the buffer
                     //
                     status = RingBufferWrite(&QueueContext->RingBuffer,
-                            okString,
-                            okStringCch);
-                    if( !NT_SUCCESS(status) ) {
+                        okString,
+                        okStringCch);
+                    if (!NT_SUCCESS(status)) {
                         return status;
                     }
                 }
@@ -701,13 +702,13 @@ NTSTATUS
 QueueProcessGetLineControl(
     _In_  PQUEUE_CONTEXT    QueueContext,
     _In_  WDFREQUEST        Request
-    )
+)
 {
     NTSTATUS                status;
     PDEVICE_CONTEXT         deviceContext;
-    SERIAL_LINE_CONTROL     lineControl = {0};
+    SERIAL_LINE_CONTROL     lineControl = { 0 };
     ULONG                   lineControlSnapshot;
-    ULONG                   *lineControlRegister;
+    ULONG* lineControlRegister;
 
     deviceContext = QueueContext->DeviceContext;
     lineControlRegister = GetLineControlRegisterPtr(deviceContext);
@@ -717,7 +718,7 @@ QueueProcessGetLineControl(
     //
     // Take a snapshot of the line control register variable
     //
-    lineControlSnapshot = ReadNoFence((LONG *)lineControlRegister);
+    lineControlSnapshot = ReadNoFence((LONG*)lineControlRegister);
 
     //
     // Decode the word length
@@ -786,8 +787,8 @@ QueueProcessGetLineControl(
     // Copy the information that was decoded to the caller's buffer
     //
     status = RequestCopyFromBuffer(Request,
-                        (void*) &lineControl,
-                        sizeof(lineControl));
+        (void*)&lineControl,
+        sizeof(lineControl));
     return status;
 }
 
@@ -796,12 +797,12 @@ NTSTATUS
 QueueProcessSetLineControl(
     _In_  PQUEUE_CONTEXT    QueueContext,
     _In_  WDFREQUEST        Request
-    )
+)
 {
     NTSTATUS                status;
     PDEVICE_CONTEXT         deviceContext;
-    SERIAL_LINE_CONTROL     lineControl = {0};
-    ULONG                   *lineControlRegister;
+    SERIAL_LINE_CONTROL     lineControl = { 0 };
+    ULONG* lineControlRegister;
     UCHAR                   lineControlData = 0;
     UCHAR                   lineControlStop = 0;
     UCHAR                   lineControlParity = 0;
@@ -815,19 +816,14 @@ QueueProcessSetLineControl(
 
     ASSERT(lineControlRegister);
 
-    //
-    // This is a driver for a virtual serial port. Since there is no
-    // actual hardware, we just store the line control register
-    // configuration and don't do anything with it.
-    //
     status = RequestCopyToBuffer(Request,
-                        (void*) &lineControl,
-                        sizeof(lineControl));
+        (void*)&lineControl,
+        sizeof(lineControl));
 
     //
     // Bits 0 and 1 of the line control register
     //
-    if( NT_SUCCESS(status) )
+    if (NT_SUCCESS(status))
     {
         switch (lineControl.WordLength)
         {
@@ -860,7 +856,7 @@ QueueProcessSetLineControl(
     //
     // Bit 2 of the line control register
     //
-    if( NT_SUCCESS(status) )
+    if (NT_SUCCESS(status))
     {
         switch (lineControl.StopBits)
         {
@@ -895,7 +891,7 @@ QueueProcessSetLineControl(
     //
     // Bits 3, 4 and 5 of the line control register
     //
-    if( NT_SUCCESS(status) )
+    if (NT_SUCCESS(status))
     {
         switch (lineControl.Parity)
         {
@@ -928,7 +924,7 @@ QueueProcessSetLineControl(
     //
     // Update our line control register variable atomically
     //
-    i=0;
+    i = 0;
     do {
         i++;
         if ((i & 0xf) == 0) {
@@ -937,24 +933,20 @@ QueueProcessSetLineControl(
             // update the line control register variable atomically.
             // Yield the CPU for other threads for a while.
             //
-#ifdef _KERNEL_MODE
             LARGE_INTEGER   interval;
             interval.QuadPart = 0;
             KeDelayExecutionThread(UserMode, FALSE, &interval);
-#else
-            SwitchToThread();
-#endif
         }
 
-        lineControlSnapshot = ReadNoFence((LONG *)lineControlRegister);
+        lineControlSnapshot = ReadNoFence((LONG*)lineControlRegister);
 
         lineControlNew = (lineControlSnapshot & SERIAL_LCR_BREAK) |
-                        (lineControlData | lineControlParity | lineControlStop);
+            (lineControlData | lineControlParity | lineControlStop);
 
         lineControlPrevious = InterlockedCompareExchange(
-                      (LONG *) lineControlRegister,
-                       lineControlNew,
-                       lineControlSnapshot);
+            (LONG*)lineControlRegister,
+            lineControlNew,
+            lineControlSnapshot);
 
     } while (lineControlPrevious != lineControlSnapshot);
 

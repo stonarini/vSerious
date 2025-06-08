@@ -1,0 +1,126 @@
+;
+; vSerious.inf
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Ports
+ClassGuid   = {4D36E978-E325-11CE-BFC1-08002BE10318}
+Provider    = %ManufacturerName%
+CatalogFile = vSerious.cat
+DriverVer   = 01/05/2025,1.0.0.1
+PnpLockdown = 1
+
+[DestinationDirs]
+File_Copy_Driver  = 12    ; Windows\System32\drivers
+WdfCoInstaller_CopyFiles_x86 = 11
+WdfCoInstaller_CopyFiles_x64 = 11
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+vSerious.sys = 1,,
+WdfCoInstaller01011_x86.dll = 1,,,
+WdfCoInstaller01011_x64.dll = 1,,,
+;*****************************************
+; Manufacturer Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName% = Standard,NTx86,NTamd64,NTamd64.10.0...16299
+
+; Windows 7 x86
+[Standard.NTx86]
+%vSerious.DeviceDesc% = vSerious_Install_Win7.NTx86, Root\vSerious
+
+; Windows 7 x64
+[Standard.NTamd64]
+%vSerious.DeviceDesc% = vSerious_Install_Win7.NTamd64, Root\vSerious
+
+; Windows 10 x64 (1709+) with DIRID 13 support
+[Standard.NTamd64.10.0...16299]
+%vSerious.DeviceDesc% = vSerious_Install_Win10, Root\vSerious
+
+;*****************************************
+; Install Sections
+;*****************************************
+
+; -------- Windows 7 Install (x86 & x64) --------
+[vSerious_Install_Win7.NTx86]
+CopyFiles   = File_Copy_Driver
+AddReg      = AddCOMPortReg
+AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
+
+[vSerious_Install_Win7.NTx86.Wdf]
+KmdfService = vSerious, vSerious_wdfsect
+
+[vSerious_Install_Win7.NTx86.Services]
+AddService = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
+
+[vSerious_Install_Win7.NTx86.CoInstallers]
+CopyFiles = WdfCoInstaller_CopyFiles_x86
+
+[vSerious_Install_Win7.NTamd64]
+CopyFiles   = File_Copy_Driver
+AddReg      = AddCOMPortReg
+AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
+
+[vSerious_Install_Win7.NTamd64.Wdf]
+KmdfService = vSerious, vSerious_wdfsect
+
+[vSerious_Install_Win7.NTamd64.Services]
+AddService = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
+
+[vSerious_Install_Win7.NTamd64.CoInstallers]
+CopyFiles = WdfCoInstaller_CopyFiles_x64
+
+; -------- Windows 10 x64 Install (16299+) --------
+[vSerious_Install_Win10.NT]
+CopyFiles   = File_Copy_Driver
+AddReg      = AddCOMPortReg
+AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
+
+[vSerious_Install_Win10.NT.Wdf]
+KmdfService = vSerious, vSerious_wdfsect
+
+[vSerious_Install_Win10.NT.Services]
+AddService = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
+
+;*****************************************
+; Shared Sections
+;*****************************************
+
+[AddCOMPortReg]
+HKR,,"PortSubClass",0x00010001,0x01
+HKR,,"FriendlyName",,%vSerious.DeviceDesc%
+
+[vSerious_Service_Inst]
+DisplayName    = %vSerious.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\vSerious.sys   ; System32\drivers
+
+[File_Copy_Driver]
+vSerious.sys
+
+[vSerious_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[WdfCoInstaller_CopyFiles_x86]
+WdfCoInstaller01011_x86.dll
+
+[WdfCoInstaller_CopyFiles_x64]
+WdfCoInstaller01011_x64.dll
+
+;*****************************************
+; Strings
+;*****************************************
+
+[Strings]
+SPSVCINST_ASSOCSERVICE = 0x00000002
+ManufacturerName       = "stonarini"
+DiskName               = "vSerious Installation Disk"
+vSerious.DeviceDesc    = "vSerious VCOM Port"
+vSerious.SVCDESC       = "vSerious VCOM Port"

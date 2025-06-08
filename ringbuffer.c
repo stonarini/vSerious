@@ -1,32 +1,16 @@
-/*++
-
-Copyright (c) Microsoft Corporation, All Rights Reserved
-
-Module Name:
-
-    RingBuffer.c
-
-Abstract:
-
-    This file implements the Ring Buffer
-
-Environment:
-
---*/
-
 #include "internal.h"
 
 VOID
 RingBufferInitialize(
     _In_  PRING_BUFFER      Self,
     _In_reads_bytes_(BufferSize)
-          BYTE*             Buffer,
+    BYTE* Buffer,
     _In_  size_t            BufferSize
-    )
+)
 {
     Self->Size = BufferSize;
     Self->Base = Buffer;
-    Self->End  = Buffer + BufferSize;
+    Self->End = Buffer + BufferSize;
     Self->Head = Buffer;
     Self->Tail = Buffer;
 }
@@ -35,12 +19,12 @@ RingBufferInitialize(
 VOID
 RingBufferGetAvailableSpace(
     _In_  PRING_BUFFER      Self,
-    _Out_ size_t            *AvailableSpace
-    )
+    _Out_ size_t* AvailableSpace
+)
 {
-    BYTE*                   headSnapshot = NULL;
-    BYTE*                   tailSnapshot = NULL;
-    BYTE*                   tailPlusOne  = NULL;
+    BYTE* headSnapshot = NULL;
+    BYTE* tailSnapshot = NULL;
+    BYTE* tailPlusOne = NULL;
 
     ASSERT(AvailableSpace);
 
@@ -74,47 +58,24 @@ RingBufferGetAvailableSpace(
     // ... and a full buffer is denoted by -
     //      (tail+1) == head
     //
-    tailPlusOne = ((tailSnapshot+1) == Self->End) ? Self->Base : (tailSnapshot+1);
+    tailPlusOne = ((tailSnapshot + 1) == Self->End) ? Self->Base : (tailSnapshot + 1);
 
     if (tailPlusOne == headSnapshot)
     {
-        //
-        // Buffer full
-        //
         *AvailableSpace = 0;
     }
     else if (tailSnapshot == headSnapshot)
     {
-        //
-        // Buffer empty
-        // The -1 in the computation below is to account for the fact that
-        // we always leave the last byte of the ring buffer unused in order
-        // to distinguish between an empty buffer and a full buffer.
-        //
         *AvailableSpace = Self->Size - 1;
     }
     else
     {
         if (tailSnapshot > headSnapshot)
         {
-            //
-            // Data has not wrapped around the end of the buffer
-            // The -1 in the computation below is to account for the fact
-            // that we always leave the last byte of the ring buffer unused
-            // in order to distinguish between an empty buffer and a full
-            // buffer.
-            //
             *AvailableSpace = Self->Size - (tailSnapshot - headSnapshot) - 1;
         }
         else
         {
-            //
-            // Data has wrapped around the end of the buffer
-            // The -1 in the computation below is to account for the fact
-            // that we always leave the last byte of the ring buffer unused
-            // in order to distinguish between an empty buffer and a full
-            // buffer.
-            //
             *AvailableSpace = (headSnapshot - tailSnapshot) - 1;
         }
     }
@@ -124,8 +85,8 @@ RingBufferGetAvailableSpace(
 VOID
 RingBufferGetAvailableData(
     _In_  PRING_BUFFER      Self,
-    _Out_ size_t            *AvailableData
-    )
+    _Out_ size_t* AvailableData
+)
 {
     size_t                  availableSpace;
 
@@ -133,11 +94,6 @@ RingBufferGetAvailableData(
 
     RingBufferGetAvailableSpace(Self, &availableSpace);
 
-    //
-    // The -1 in the arithmetic below accounts for the fact that we always
-    // keep 1 byte of the ring buffer unused in order to distinguish
-    // between a full buffer and an empty buffer.
-    //
     *AvailableData = Self->Size - availableSpace - 1;
 }
 
@@ -146,9 +102,9 @@ NTSTATUS
 RingBufferWrite(
     _In_  PRING_BUFFER      Self,
     _In_reads_bytes_(DataSize)
-          BYTE*             Data,
+    BYTE* Data,
     _In_  size_t            DataSize
-    )
+)
 {
     size_t                  availableSpace;
     size_t                  bytesToCopy;
@@ -161,17 +117,11 @@ RingBufferWrite(
         return STATUS_INTERNAL_ERROR;
     }
 
-    //
-    // Get the amount of space available in the buffer
-    //
     RingBufferGetAvailableSpace(Self, &availableSpace);
 
-    //
-    // If there is not enough space to fit in all the data passed in by the
-    // caller then copy as much as possible and throw away the rest
-    //
     if (availableSpace < DataSize)
     {
+        // throw away eccess data
         bytesToCopy = availableSpace;
     }
     else
@@ -181,9 +131,6 @@ RingBufferWrite(
 
     if (bytesToCopy)
     {
-        //
-        // The buffer has some space at least
-        //
         if ((Self->Tail + bytesToCopy) > Self->End)
         {
             //
@@ -209,9 +156,6 @@ RingBufferWrite(
             //
             RtlCopyMemory(Self->Base, Data, bytesToCopy);
 
-            //
-            // Advance the tail pointer
-            //
             Self->Tail = Self->Base + bytesToCopy;
         }
         else
@@ -222,9 +166,6 @@ RingBufferWrite(
             //
             RtlCopyMemory(Self->Tail, Data, bytesToCopy);
 
-            //
-            // Advance the tail pointer
-            //
             Self->Tail += bytesToCopy;
             if (Self->Tail == Self->End)
             {
@@ -247,10 +188,10 @@ NTSTATUS
 RingBufferRead(
     _In_  PRING_BUFFER      Self,
     _Out_writes_bytes_to_(DataSize, *BytesCopied)
-          BYTE*             Data,
+    BYTE* Data,
     _In_  size_t            DataSize,
-    _Out_ size_t            *BytesCopied
-    )
+    _Out_ size_t* BytesCopied
+)
 {
     size_t                  availableData;
     size_t                  dataFromCurrToEnd;
@@ -262,9 +203,6 @@ RingBufferRead(
         return STATUS_INTERNAL_ERROR;
     }
 
-    //
-    // Get the amount of data available in the buffer
-    //
     RingBufferGetAvailableData(Self, &availableData);
 
     if (availableData == 0)
@@ -304,9 +242,6 @@ RingBufferRead(
         //
         RtlCopyMemory(Data, Self->Base, DataSize);
 
-        //
-        // Advance the head pointer
-        //
         Self->Head = Self->Base + DataSize;
     }
     else
@@ -317,9 +252,6 @@ RingBufferRead(
         //
         RtlCopyMemory(Data, Self->Head, DataSize);
 
-        //
-        // Advance the head pointer
-        //
         Self->Head += DataSize;
         if (Self->Head == Self->End)
         {
@@ -335,4 +267,3 @@ RingBufferRead(
 
     return STATUS_SUCCESS;
 }
-
