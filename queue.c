@@ -389,6 +389,13 @@ vSeriousEvtIoDeviceControl(
     case IOCTL_VSERIOUS_SET_ACTIVE:
     {
         BOOLEAN activeFlag = FALSE;
+
+        // without COM port specified, we return invalid state
+        if (deviceContext->SymbolicLinkName.Buffer == NULL || deviceContext->SymbolicLinkName.Length == 0) {
+            status = STATUS_INVALID_DEVICE_STATE;
+            break;
+        }
+
         status = RequestCopyToBuffer(Request, &activeFlag, sizeof(activeFlag));
         if (!NT_SUCCESS(status)) {
             WdfRequestComplete(Request, status);
@@ -400,8 +407,7 @@ vSeriousEvtIoDeviceControl(
             deviceContext->Active = (activeFlag != FALSE);
 
             if (deviceContext->Active) {
-                DECLARE_UNICODE_STRING_SIZE(comPort, 10);
-                status = DevicePlugIn(deviceContext, &comPort);
+                status = DevicePlugIn(deviceContext);
             }
             else {
                 status = DeviceUnplug(deviceContext);
@@ -420,6 +426,62 @@ vSeriousEvtIoDeviceControl(
         status = RequestCopyFromBuffer(Request, &active, sizeof(active));
         break;
     }
+
+    case IOCTL_VSERIOUS_SET_COM_NAME:
+    {
+        errno_t errorNo;
+        WCHAR portBuffer[16] = { 0 };
+        status = RequestCopyToBuffer(Request, &portBuffer, sizeof(portBuffer));
+        if (!NT_SUCCESS(status)) {
+            break;
+        }
+
+        UNICODE_STRING symbolicLinkName;
+        symbolicLinkName.Buffer = deviceContext->SymbolicLinkBuffer;
+        symbolicLinkName.MaximumLength = sizeof(deviceContext->SymbolicLinkBuffer);
+
+        // Compose symbolic link name: "\\DosDevices\\COMx"
+        // Calculate length safely (number of WCHARs, excluding NULL)
+        symbolicLinkName.Length = (USHORT)(
+            (wcslen(SYMBOLIC_LINK_NAME_PREFIX) + wcslen(portBuffer)) * sizeof(WCHAR)
+            );
+
+        if (symbolicLinkName.Length >= symbolicLinkName.MaximumLength) {
+            Trace(TRACE_LEVEL_ERROR, "Symbolic link buffer too small");
+            status = STATUS_BUFFER_OVERFLOW;
+            break;
+        }
+
+        errorNo = wcscpy_s(symbolicLinkName.Buffer,
+            SYMBOLIC_LINK_NAME_LENGTH,
+            SYMBOLIC_LINK_NAME_PREFIX);
+        if (errorNo != 0) {
+            Trace(TRACE_LEVEL_ERROR, "wcscpy_s failed with %d", errorNo);
+            status = STATUS_INVALID_PARAMETER;
+            break;
+
+        }
+
+        errorNo = wcscat_s(symbolicLinkName.Buffer,
+            SYMBOLIC_LINK_NAME_LENGTH,
+            portBuffer);
+        if (errorNo != 0) {
+            Trace(TRACE_LEVEL_ERROR, "wcscat_s failed with %d", errorNo);
+            status = STATUS_INVALID_PARAMETER;
+            break;
+
+        }
+
+        deviceContext->SymbolicLinkName = symbolicLinkName;
+        break;
+    }
+    case IOCTL_VSERIOUS_GET_COM_NAME:
+    {
+        UNICODE_STRING linkName = deviceContext->SymbolicLinkName;
+        status = RequestCopyFromBuffer(Request, &linkName, sizeof(linkName));
+        break;
+    }
+
     case IOCTL_SERIAL_SET_QUEUE_SIZE:
     case IOCTL_SERIAL_SET_DTR:
     case IOCTL_SERIAL_SET_RTS:
