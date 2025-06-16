@@ -1,7 +1,7 @@
 #include "internal.h"
 
 NTSTATUS
-QueueCreate(
+QueueCreateDevice(
     _In_  PDEVICE_CONTEXT   DeviceContext
 )
 {
@@ -16,9 +16,9 @@ QueueCreate(
         &queueConfig,
         WdfIoQueueDispatchParallel);
 
-    queueConfig.EvtIoRead = vSeriousEvtIoRead;
-    queueConfig.EvtIoWrite = vSeriousEvtIoWrite;
-    queueConfig.EvtIoDeviceControl = vSeriousEvtIoDeviceControl;
+    queueConfig.EvtIoRead = vSeriousDeviceEvtIoRead;
+    queueConfig.EvtIoWrite = vSeriousDeviceEvtIoWrite;
+    queueConfig.EvtIoDeviceControl = vSeriousDeviceEvtIoDeviceControl;
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(
         &queueAttributes,
@@ -39,6 +39,97 @@ QueueCreate(
     queueContext = GetQueueContext(queue);
     queueContext->Queue = queue;
     queueContext->DeviceContext = DeviceContext;
+
+    //
+    // Create a manual queue to hold pending read requests. By keeping
+    // them in the queue, framework takes care of cancelling them if the app
+    // exits
+    //
+
+    WDF_IO_QUEUE_CONFIG_INIT(
+        &queueConfig,
+        WdfIoQueueDispatchManual);
+
+    status = WdfIoQueueCreate(
+        device,
+        &queueConfig,
+        WDF_NO_OBJECT_ATTRIBUTES,
+        &queue);
+
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR,
+            "Error: WdfIoQueueCreate manual queue failed 0x%x", status);
+        return status;
+    }
+
+    queueContext->ReadQueue = queue;
+
+    //
+    // Create another manual queue to hold pending IOCTL_SERIAL_WAIT_ON_MASK
+    //
+
+    WDF_IO_QUEUE_CONFIG_INIT(
+        &queueConfig,
+        WdfIoQueueDispatchManual);
+
+    status = WdfIoQueueCreate(
+        device,
+        &queueConfig,
+        WDF_NO_OBJECT_ATTRIBUTES,
+        &queue);
+
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR,
+            "Error: WdfIoQueueCreate manual queue failed 0x%x", status);
+        return status;
+    }
+
+    queueContext->WaitMaskQueue = queue;
+
+    RingBufferInitialize(&queueContext->RingBuffer,
+        queueContext->Buffer,
+        sizeof(queueContext->Buffer));
+
+    return status;
+}
+
+NTSTATUS
+QueueCreateController(
+    _In_  PCONTROLLER_CONTEXT   ControllerContext
+)
+{
+    NTSTATUS                status;
+    WDFDEVICE               device = ControllerContext->Controller;
+    WDF_IO_QUEUE_CONFIG     queueConfig;
+    WDF_OBJECT_ATTRIBUTES   queueAttributes;
+    WDFQUEUE                queue;
+    PQUEUE_CONTEXT          queueContext;
+
+    WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(
+        &queueConfig,
+        WdfIoQueueDispatchParallel);
+
+    queueConfig.EvtIoDeviceControl = vSeriousControllerEvtIoDeviceControl;
+
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(
+        &queueAttributes,
+        QUEUE_CONTEXT);
+
+    status = WdfIoQueueCreate(
+        device,
+        &queueConfig,
+        &queueAttributes,
+        &queue);
+
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR,
+            "Error: WdfIoQueueCreate failed 0x%x", status);
+        return status;
+    }
+
+    queueContext = GetQueueContext(queue);
+    queueContext->Queue = queue;
+    queueContext->ControllerContext = ControllerContext;
 
     //
     // Create a manual queue to hold pending read requests. By keeping
@@ -155,7 +246,220 @@ RequestCopyToBuffer(
 
 
 VOID
-vSeriousEvtIoDeviceControl(
+vSeriousControllerEvtIoDeviceControl(
+    _In_  WDFQUEUE          Queue,
+    _In_  WDFREQUEST        Request,
+    _In_  size_t            OutputBufferLength,
+    _In_  size_t            InputBufferLength,
+    _In_  ULONG             IoControlCode
+)
+{
+    NTSTATUS                status;
+    PQUEUE_CONTEXT          queueContext = GetQueueContext(Queue);
+    PCONTROLLER_CONTEXT     controllerContext = queueContext->ControllerContext;
+    UNREFERENCED_PARAMETER(OutputBufferLength);
+    UNREFERENCED_PARAMETER(InputBufferLength);
+
+    Trace(TRACE_LEVEL_INFO,
+        "EvtIoDeviceControl 0x%x", IoControlCode);
+
+    switch (IoControlCode)
+    {
+    case IOCTL_SERIAL_WAIT_ON_MASK:
+    {
+        //
+        // NOTE: A wait-on-mask request should not be completed until either:
+        //  1) A wait event occurs; or
+        //  2) A set-wait-mask request is received
+        //
+        // This is a driver for a virtual serial port. Since there is no
+        // actual hardware, we complete the request with some failure code.
+        //
+        WDFREQUEST savedRequest;
+
+        status = WdfIoQueueRetrieveNextRequest(
+            queueContext->WaitMaskQueue,
+            &savedRequest);
+
+        if (NT_SUCCESS(status)) {
+            WdfRequestComplete(savedRequest,
+                STATUS_UNSUCCESSFUL);
+        }
+
+        //
+        // Keep the request in a manual queue and the framework will take
+        // care of cancelling them when the app exits
+        //
+        status = WdfRequestForwardToIoQueue(
+            Request,
+            queueContext->WaitMaskQueue);
+
+        if (!NT_SUCCESS(status)) {
+            Trace(TRACE_LEVEL_ERROR,
+                "Error: WdfRequestForwardToIoQueue failed 0x%x", status);
+            WdfRequestComplete(Request, status);
+        }
+
+        //
+        // Instead of "break", use "return" to prevent the current request
+        // from being completed.
+        //
+        return;
+    }
+
+    case IOCTL_SERIAL_SET_WAIT_MASK:
+    {
+        //
+        // NOTE: If a wait-on-mask request is already pending when set-wait-mask
+        // request is processed, the pending wait-on-event request is completed
+        // with STATUS_SUCCESS and the output wait event mask is set to zero.
+        //
+        WDFREQUEST savedRequest;
+
+        status = WdfIoQueueRetrieveNextRequest(
+            queueContext->WaitMaskQueue,
+            &savedRequest);
+
+        if (NT_SUCCESS(status)) {
+
+            ULONG eventMask = 0;
+            status = RequestCopyFromBuffer(
+                savedRequest,
+                &eventMask,
+                sizeof(eventMask));
+
+            WdfRequestComplete(savedRequest, status);
+        }
+
+        //
+        // NOTE: The application expects STATUS_SUCCESS for these IOCTLs.
+        //
+        status = STATUS_SUCCESS;
+        break;
+    }
+
+    case IOCTL_VSERIOUS_SET_ACTIVE:
+    {
+        BOOLEAN activeFlag = FALSE;
+
+        // without COM port specified, we return invalid state
+        if (controllerContext->SymbolicLinkName.Buffer == NULL || controllerContext->SymbolicLinkName.Length == 0) {
+            status = STATUS_INVALID_DEVICE_STATE;
+            break;
+        }
+
+        status = RequestCopyToBuffer(Request, &activeFlag, sizeof(activeFlag));
+        if (!NT_SUCCESS(status)) {
+            WdfRequestComplete(Request, status);
+            break;
+        }
+
+        if (controllerContext->Active != activeFlag) {
+
+            controllerContext->Active = (activeFlag != FALSE);
+
+            if (controllerContext->Active) {
+                PDEVICE_CONTEXT deviceContext;
+                status = DevicePlugIn(controllerContext, &deviceContext);
+                controllerContext->COMDevice = deviceContext;
+            }
+            else {
+                status = DeviceUnplug(controllerContext);
+            }
+        }
+        else {
+            status = STATUS_SUCCESS;
+        }
+
+        WdfRequestComplete(Request, status);
+        break;
+    }
+    case IOCTL_VSERIOUS_GET_ACTIVE:
+    {
+        BOOLEAN active = controllerContext->Active;
+        status = RequestCopyFromBuffer(Request, &active, sizeof(active));
+        break;
+    }
+
+    case IOCTL_VSERIOUS_SET_COM_NAME:
+    {
+        errno_t errorNo;
+        WCHAR portBuffer[16] = { 0 };
+        status = RequestCopyToBuffer(Request, &portBuffer, sizeof(portBuffer));
+        if (!NT_SUCCESS(status)) {
+            break;
+        }
+
+        UNICODE_STRING symbolicLinkName;
+        symbolicLinkName.Buffer = controllerContext->SymbolicLinkBuffer;
+        symbolicLinkName.MaximumLength = sizeof(controllerContext->SymbolicLinkBuffer);
+
+        symbolicLinkName.Length = (USHORT)(wcslen(portBuffer) * sizeof(WCHAR));
+
+        if (symbolicLinkName.Length >= symbolicLinkName.MaximumLength) {
+            Trace(TRACE_LEVEL_ERROR, "Symbolic link buffer too small");
+            status = STATUS_BUFFER_OVERFLOW;
+            break;
+        }
+
+        errorNo = wcscpy_s(symbolicLinkName.Buffer,
+            SYMBOLIC_LINK_NAME_LENGTH,
+            SYMBOLIC_LINK_NAME_PREFIX);
+        if (errorNo != 0) {
+            Trace(TRACE_LEVEL_ERROR, "wcscpy_s failed with %d", errorNo);
+            status = STATUS_INVALID_PARAMETER;
+            break;
+
+        }
+
+        errorNo = wcscat_s(symbolicLinkName.Buffer,
+            SYMBOLIC_LINK_NAME_LENGTH,
+            portBuffer);
+        if (errorNo != 0) {
+            Trace(TRACE_LEVEL_ERROR, "wcscat_s failed with %d", errorNo);
+            status = STATUS_INVALID_PARAMETER;
+            break;
+
+        }
+
+        controllerContext->SymbolicLinkName = symbolicLinkName;
+        break;
+    }
+    case IOCTL_VSERIOUS_GET_COM_NAME:
+    {
+        UNICODE_STRING linkName = controllerContext->SymbolicLinkName;
+        status = RequestCopyFromBuffer(Request, &linkName, sizeof(linkName));
+        break;
+    }
+
+    case IOCTL_SERIAL_SET_QUEUE_SIZE:
+    case IOCTL_SERIAL_SET_DTR:
+    case IOCTL_SERIAL_SET_RTS:
+    case IOCTL_SERIAL_CLR_RTS:
+    case IOCTL_SERIAL_SET_XON:
+    case IOCTL_SERIAL_SET_XOFF:
+    case IOCTL_SERIAL_SET_CHARS:
+    case IOCTL_SERIAL_GET_CHARS:
+    case IOCTL_SERIAL_GET_HANDFLOW:
+    case IOCTL_SERIAL_SET_HANDFLOW:
+    case IOCTL_SERIAL_RESET_DEVICE:
+        //
+        // NOTE: The application expects STATUS_SUCCESS for these IOCTLs.
+        //
+        status = STATUS_SUCCESS;
+        break;
+
+    default:
+        status = STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    WdfRequestComplete(Request, status);
+}
+
+
+VOID
+vSeriousDeviceEvtIoDeviceControl(
     _In_  WDFQUEUE          Queue,
     _In_  WDFREQUEST        Request,
     _In_  size_t            OutputBufferLength,
@@ -171,16 +475,6 @@ vSeriousEvtIoDeviceControl(
 
     Trace(TRACE_LEVEL_INFO,
         "EvtIoDeviceControl 0x%x", IoControlCode);
-
-    // If device is not active, return not_connected
-    // for other IOCTL calls
-    if (!deviceContext->Active && (
-        !IoControlCode == IOCTL_VSERIOUS_GET_ACTIVE ||
-        !IoControlCode == IOCTL_VSERIOUS_SET_ACTIVE)) {
-        status = STATUS_DEVICE_NOT_CONNECTED;
-        WdfRequestComplete(Request, status);
-        return;
-    }
 
     switch (IoControlCode)
     {
@@ -386,102 +680,6 @@ vSeriousEvtIoDeviceControl(
         break;
     }
 
-    case IOCTL_VSERIOUS_SET_ACTIVE:
-    {
-        BOOLEAN activeFlag = FALSE;
-
-        // without COM port specified, we return invalid state
-        if (deviceContext->SymbolicLinkName.Buffer == NULL || deviceContext->SymbolicLinkName.Length == 0) {
-            status = STATUS_INVALID_DEVICE_STATE;
-            break;
-        }
-
-        status = RequestCopyToBuffer(Request, &activeFlag, sizeof(activeFlag));
-        if (!NT_SUCCESS(status)) {
-            WdfRequestComplete(Request, status);
-            break;
-        }
-
-        if (deviceContext->Active != activeFlag) {
-
-            deviceContext->Active = (activeFlag != FALSE);
-
-            if (deviceContext->Active) {
-                status = DevicePlugIn(deviceContext);
-            }
-            else {
-                status = DeviceUnplug(deviceContext);
-            }
-        }
-        else {
-            status = STATUS_SUCCESS;
-        }
-
-        WdfRequestComplete(Request, status);
-        break;
-    }
-    case IOCTL_VSERIOUS_GET_ACTIVE:
-    {
-        BOOLEAN active = deviceContext->Active;
-        status = RequestCopyFromBuffer(Request, &active, sizeof(active));
-        break;
-    }
-
-    case IOCTL_VSERIOUS_SET_COM_NAME:
-    {
-        errno_t errorNo;
-        WCHAR portBuffer[16] = { 0 };
-        status = RequestCopyToBuffer(Request, &portBuffer, sizeof(portBuffer));
-        if (!NT_SUCCESS(status)) {
-            break;
-        }
-
-        UNICODE_STRING symbolicLinkName;
-        symbolicLinkName.Buffer = deviceContext->SymbolicLinkBuffer;
-        symbolicLinkName.MaximumLength = sizeof(deviceContext->SymbolicLinkBuffer);
-
-        // Compose symbolic link name: "\\DosDevices\\COMx"
-        // Calculate length safely (number of WCHARs, excluding NULL)
-        symbolicLinkName.Length = (USHORT)(
-            (wcslen(SYMBOLIC_LINK_NAME_PREFIX) + wcslen(portBuffer)) * sizeof(WCHAR)
-            );
-
-        if (symbolicLinkName.Length >= symbolicLinkName.MaximumLength) {
-            Trace(TRACE_LEVEL_ERROR, "Symbolic link buffer too small");
-            status = STATUS_BUFFER_OVERFLOW;
-            break;
-        }
-
-        errorNo = wcscpy_s(symbolicLinkName.Buffer,
-            SYMBOLIC_LINK_NAME_LENGTH,
-            SYMBOLIC_LINK_NAME_PREFIX);
-        if (errorNo != 0) {
-            Trace(TRACE_LEVEL_ERROR, "wcscpy_s failed with %d", errorNo);
-            status = STATUS_INVALID_PARAMETER;
-            break;
-
-        }
-
-        errorNo = wcscat_s(symbolicLinkName.Buffer,
-            SYMBOLIC_LINK_NAME_LENGTH,
-            portBuffer);
-        if (errorNo != 0) {
-            Trace(TRACE_LEVEL_ERROR, "wcscat_s failed with %d", errorNo);
-            status = STATUS_INVALID_PARAMETER;
-            break;
-
-        }
-
-        deviceContext->SymbolicLinkName = symbolicLinkName;
-        break;
-    }
-    case IOCTL_VSERIOUS_GET_COM_NAME:
-    {
-        UNICODE_STRING linkName = deviceContext->SymbolicLinkName;
-        status = RequestCopyFromBuffer(Request, &linkName, sizeof(linkName));
-        break;
-    }
-
     case IOCTL_SERIAL_SET_QUEUE_SIZE:
     case IOCTL_SERIAL_SET_DTR:
     case IOCTL_SERIAL_SET_RTS:
@@ -509,7 +707,7 @@ vSeriousEvtIoDeviceControl(
 
 
 VOID
-vSeriousEvtIoWrite(
+vSeriousDeviceEvtIoWrite(
     _In_  WDFQUEUE          Queue,
     _In_  WDFREQUEST        Request,
     _In_  size_t            Length
@@ -522,16 +720,9 @@ vSeriousEvtIoWrite(
     WDFREQUEST              savedRequest;
     size_t                  availableData = 0;
 
-    Trace(TRACE_LEVEL_INFO,
-        "EvtIoWrite 0x%p", Request);
+    Trace(TRACE_LEVEL_INFO, "EvtIoWrite 0x%p", Request);
 
     deviceContext = queueContext->DeviceContext;
-
-    if (!deviceContext->Active) {
-        // reject the request
-        WdfRequestComplete(Request, STATUS_DEVICE_NOT_CONNECTED);
-        return;
-    }
 
     status = WdfRequestRetrieveInputMemory(Request, &memory);
     if (!NT_SUCCESS(status)) {
@@ -583,7 +774,7 @@ vSeriousEvtIoWrite(
 
 
 VOID
-vSeriousEvtIoRead(
+vSeriousDeviceEvtIoRead(
     _In_  WDFQUEUE          Queue,
     _In_  WDFREQUEST        Request,
     _In_  size_t            Length
@@ -599,12 +790,6 @@ vSeriousEvtIoRead(
         "EvtIoRead 0x%p", Request);
 
     deviceContext = queueContext->DeviceContext;
-
-    if (!deviceContext->Active) {
-        // reject the request
-        WdfRequestComplete(Request, STATUS_DEVICE_NOT_CONNECTED);
-        return;
-    }
 
     status = WdfRequestRetrieveOutputMemory(Request, &memory);
     if (!NT_SUCCESS(status)) {

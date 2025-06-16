@@ -36,17 +36,25 @@ typedef struct _QUEUE_CONTEXT
 
     PDEVICE_CONTEXT DeviceContext;
 
+    PCONTROLLER_CONTEXT ControllerContext;
+
 } QUEUE_CONTEXT, * PQUEUE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(QUEUE_CONTEXT, GetQueueContext);
 
-EVT_WDF_IO_QUEUE_IO_READ            vSeriousEvtIoRead;
-EVT_WDF_IO_QUEUE_IO_WRITE           vSeriousEvtIoWrite;
-EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL  vSeriousEvtIoDeviceControl;
+EVT_WDF_IO_QUEUE_IO_READ            vSeriousDeviceEvtIoRead;
+EVT_WDF_IO_QUEUE_IO_WRITE           vSeriousDeviceEvtIoWrite;
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL  vSeriousDeviceEvtIoDeviceControl;
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL  vSeriousControllerEvtIoDeviceControl;
 
 NTSTATUS
-QueueCreate(
+QueueCreateDevice(
     _In_  PDEVICE_CONTEXT   DeviceContext
+);
+
+NTSTATUS
+QueueCreateController(
+    _In_  PCONTROLLER_CONTEXT   ControllerContext
 );
 
 NTSTATUS

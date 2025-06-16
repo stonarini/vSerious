@@ -4,15 +4,16 @@
 #include <ntddk.h>
 #include <wdf.h>
 #include <ntddser.h>
-
-#define _NTDEF_
-
 #include "serial.h"
 
 DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_DRIVER_DEVICE_ADD vSeriousEvtDeviceAdd;
+EVT_WDF_DEVICE_CONTEXT_CLEANUP  vSeriousEvtDeviceCleanup;
+
+typedef struct _CONTROLLER_CONTEXT CONTROLLER_CONTEXT, * PCONTROLLER_CONTEXT;
 
 #include "device.h"
+#include "controller.h"
 #include "ringbuffer.h"
 #include "queue.h"
 

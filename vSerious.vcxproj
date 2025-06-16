@@ -107,12 +107,14 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="controller.c" />
     <ClCompile Include="device.c" />
     <ClCompile Include="driver.c" />
     <ClCompile Include="queue.c" />
     <ClCompile Include="ringbuffer.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="controller.h" />
     <ClInclude Include="device.h" />
     <ClInclude Include="internal.h" />
     <ClInclude Include="queue.h" />

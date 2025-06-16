@@ -22,19 +22,22 @@ vSeriousEvtDeviceAdd(
 )
 {
     NTSTATUS                status;
-    PDEVICE_CONTEXT         deviceContext;
+    PCONTROLLER_CONTEXT     controllerContext;
 
-    status = DeviceCreate(Driver,
-        DeviceInit,
-        &deviceContext);
-    if (!NT_SUCCESS(status)) {
-        return status;
-    }
-
-    status = DeviceConfigure(deviceContext);
-    if (!NT_SUCCESS(status)) {
-        return status;
-    }
+    status = ControllerCreate(Driver, DeviceInit, &controllerContext);
 
     return status;
+}
+
+VOID
+vSeriousEvtDeviceCleanup(
+    _In_  WDFOBJECT         Object
+)
+{
+    WDFDEVICE               device = (WDFDEVICE)Object;
+    PCONTROLLER_CONTEXT     controllerContext = GetControllerContext(device);
+
+    DeviceUnplug(controllerContext);
+
+    return;
 }
