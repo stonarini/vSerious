@@ -30,8 +30,3 @@ ControllerCreate(
     _In_  PWDFDEVICE_INIT   DeviceInit,
     _Out_ PCONTROLLER_CONTEXT*  ControllerContext
 );
-
-NTSTATUS
-ControllerDelete(
-    _In_ PCONTROLLER_CONTEXT ControllerContext
-);

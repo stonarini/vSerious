@@ -47,30 +47,3 @@ ControllerCreate(
 
 	return status;
 }
-
-NTSTATUS
-ControllerDelete(
-	_In_ PCONTROLLER_CONTEXT ControllerContext
-)
-{
-	WDFDEVICE device;
-	NTSTATUS status = STATUS_SUCCESS;
-
-	if (!ControllerContext) {
-		return status;
-	}
-
-	device = ControllerContext->Controller;
-
-	DECLARE_UNICODE_STRING_SIZE(controllerSymbolicLink, 64);
-	RtlInitUnicodeString(&controllerSymbolicLink, CONTROLLER_SYMBOLIC_LINK);
-
-	status = IoDeleteSymbolicLink(&controllerSymbolicLink);
-	if (!NT_SUCCESS(status)) {
-		Trace(TRACE_LEVEL_ERROR, "ERROR: IoDeleteSymbolicLink failed 0x%x", status);
-	}
-
-	WdfObjectDelete(device);
-
-	return status;
-}

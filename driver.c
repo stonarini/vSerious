@@ -6,13 +6,21 @@ DriverEntry(
     _In_ PUNICODE_STRING RegistryPath
 )
 {
-    UNREFERENCED_PARAMETER(DriverObject);
-    UNREFERENCED_PARAMETER(RegistryPath);
+    NTSTATUS status = STATUS_SUCCESS;
 
     WDF_DRIVER_CONFIG config;
     WDF_DRIVER_CONFIG_INIT(&config, vSeriousEvtDeviceAdd);
 
-    return STATUS_SUCCESS;
+    status = WdfDriverCreate(DriverObject,
+        RegistryPath,
+        WDF_NO_OBJECT_ATTRIBUTES,
+        &config,
+        WDF_NO_HANDLE);
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDriverCreate failed 0x%x", status);
+    }
+
+    return status;
 }
 
 NTSTATUS
@@ -37,7 +45,9 @@ vSeriousEvtDeviceCleanup(
     WDFDEVICE               device = (WDFDEVICE)Object;
     PCONTROLLER_CONTEXT     controllerContext = GetControllerContext(device);
 
-    DeviceUnplug(controllerContext);
+    if (controllerContext->COMDevice != NULL) {
+        DeviceUnplug(controllerContext);
+    }
 
     return;
 }

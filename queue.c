@@ -385,7 +385,13 @@ vSeriousControllerEvtIoDeviceControl(
     {
         errno_t errorNo;
         WCHAR portBuffer[16] = { 0 };
-        status = RequestCopyToBuffer(Request, &portBuffer, sizeof(portBuffer));
+        size_t inputBufferLength = 0;
+        status = WdfRequestRetrieveInputBuffer(Request, 0, NULL, &inputBufferLength);
+        if (!NT_SUCCESS(status)) {
+            break;
+        }
+        size_t copySize = inputBufferLength < sizeof(portBuffer) ? inputBufferLength : sizeof(portBuffer);
+        status = RequestCopyToBuffer(Request, &portBuffer, copySize);
         if (!NT_SUCCESS(status)) {
             break;
         }
@@ -431,23 +437,6 @@ vSeriousControllerEvtIoDeviceControl(
         status = RequestCopyFromBuffer(Request, &linkName, sizeof(linkName));
         break;
     }
-
-    case IOCTL_SERIAL_SET_QUEUE_SIZE:
-    case IOCTL_SERIAL_SET_DTR:
-    case IOCTL_SERIAL_SET_RTS:
-    case IOCTL_SERIAL_CLR_RTS:
-    case IOCTL_SERIAL_SET_XON:
-    case IOCTL_SERIAL_SET_XOFF:
-    case IOCTL_SERIAL_SET_CHARS:
-    case IOCTL_SERIAL_GET_CHARS:
-    case IOCTL_SERIAL_GET_HANDFLOW:
-    case IOCTL_SERIAL_SET_HANDFLOW:
-    case IOCTL_SERIAL_RESET_DEVICE:
-        //
-        // NOTE: The application expects STATUS_SUCCESS for these IOCTLs.
-        //
-        status = STATUS_SUCCESS;
-        break;
 
     default:
         status = STATUS_INVALID_PARAMETER;

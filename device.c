@@ -16,13 +16,36 @@ DevicePlugIn(
     DECLARE_UNICODE_STRING_SIZE(symbolicLink, SYMBOLIC_LINK_NAME_LENGTH);
     WDFKEY key;
     LPGUID guid = (LPGUID)&GUID_DEVINTERFACE_COMPORT;
-    DECLARE_CONST_UNICODE_STRING(local_SDDL_DEVOBJ_SYS_ALL_ADM_ALL, L"D:P(A;;GA;;;SY)(A;;GA;;;BA)");
 
-    deviceInit = WdfControlDeviceInitAllocate(WdfGetDriver(), &local_SDDL_DEVOBJ_SYS_ALL_ADM_ALL);
+    deviceInit = WdfPdoInitAllocate(ControllerContext->Controller);
     if (!deviceInit) {
-        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfControlDeviceInitAllocate failed 0x%x", STATUS_INSUFFICIENT_RESOURCES);
+        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfPdoInitAllocate failed");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
+
+    WDF_PNPPOWER_EVENT_CALLBACKS pnpCallbacks;
+    WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpCallbacks);
+    WdfDeviceInitSetPnpPowerEventCallbacks(deviceInit, &pnpCallbacks);
+
+    // Set IDs
+    WCHAR hwIdBuffer[64];
+    UNICODE_STRING hardwareId;
+
+    RtlInitEmptyUnicodeString(&hardwareId, hwIdBuffer, sizeof(hwIdBuffer));
+    RtlAppendUnicodeToString(&hardwareId, L"vSerious\\");
+    RtlAppendUnicodeStringToString(&hardwareId, &ControllerContext->SymbolicLinkName);
+    status = WdfPdoInitAssignDeviceID(deviceInit, &hardwareId);
+    if (!NT_SUCCESS(status)) return status;
+
+    status = WdfPdoInitAddHardwareID(deviceInit, &hardwareId);
+    if (!NT_SUCCESS(status)) return status;
+
+    status = WdfPdoInitAddCompatibleID(deviceInit, &hardwareId);
+    if (!NT_SUCCESS(status)) return status;
+
+    DECLARE_CONST_UNICODE_STRING(deviceDesc, L"vSerious Virtual COM Port");
+    WdfPdoInitAddDeviceText(deviceInit, &deviceDesc, NULL, 0);
+    WdfPdoInitSetDefaultLocale(deviceInit, 0x409); // en-US
 
     WdfDeviceInitSetDeviceType(deviceInit, FILE_DEVICE_SERIAL_PORT);
     WdfDeviceInitSetExclusive(deviceInit, FALSE);
@@ -102,13 +125,14 @@ DevicePlugIn(
     }
 
     // 5. Legacy registry mapping
-    status = DeviceWriteLegacyHardwareKey(deviceContext->PdoName, symbolicLinkBuffer, device);
+    status = DeviceWriteLegacyHardwareKey(symbolicLinkBuffer, device);
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR, "ERROR: DeviceWriteLegacyHardwareKey failed 0x%x", status);
-        WdfObjectDelete(device);
-        return status;
+        deviceContext->CreatedLegacyHardwareKey = FALSE;
     }
-    deviceContext->CreatedLegacyHardwareKey = TRUE;
+    else {
+        deviceContext->CreatedLegacyHardwareKey = TRUE;
+    }
 
     // 6. Create queue
     status = QueueCreateDevice(deviceContext);
@@ -118,6 +142,9 @@ DevicePlugIn(
     }
 
     ControllerContext->Active = TRUE;
+
+    WdfFdoAddStaticChild(ControllerContext->Controller, device);
+
     *OutDeviceContext = deviceContext;
 
     return STATUS_SUCCESS;
@@ -130,10 +157,9 @@ DeviceUnplug(
 )
 {
     NTSTATUS status = STATUS_SUCCESS;
-    WDFKEY key = NULL;
-    UNICODE_STRING pdoString;
     PDEVICE_CONTEXT deviceContext = ControllerContext->COMDevice;
-    DECLARE_CONST_UNICODE_STRING(deviceSubkey, SERIAL_DEVICE_MAP);
+    UNICODE_STRING deviceSubkey;
+    RtlInitUnicodeString(&deviceSubkey, SERIAL_DEVICE_MAP);
 
     if (ControllerContext->SymbolicLinkName.Buffer != NULL &&
         ControllerContext->SymbolicLinkName.Length > 0)
@@ -144,20 +170,28 @@ DeviceUnplug(
         }
 
         if (deviceContext->CreatedLegacyHardwareKey) {
-            RtlInitUnicodeString(&pdoString, deviceContext->PdoName);
+            HANDLE hKey = NULL;
+            PDEVICE_OBJECT pDeviceObject = WdfDeviceWdmGetDeviceObject(deviceContext->Device);
 
-            status = WdfDeviceOpenDevicemapKey(deviceContext->Device,
-                &deviceSubkey,
+            status = IoOpenDeviceRegistryKey(
+                pDeviceObject,
+                PLUGPLAY_REGKEY_DEVICE,
                 KEY_SET_VALUE,
-                WDF_NO_OBJECT_ATTRIBUTES,
-                &key);
+                &hKey
+            );
+
             if (NT_SUCCESS(status)) {
-                WdfRegistryRemoveValue(key, &pdoString);
-                WdfRegistryClose(key);
+                status = ZwDeleteValueKey(hKey, &deviceSubkey);
+                if (!NT_SUCCESS(status)) {
+                    Trace(TRACE_LEVEL_ERROR, "ERROR: ZwDeleteValueKey failed 0x%x", status);
+                }
+
+                ZwClose(hKey);
             }
             else {
-                Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceOpenDevicemapKey failed 0x%x", status);
+                Trace(TRACE_LEVEL_ERROR, "ERROR: IoOpenDeviceRegistryKey failed 0x%x", status);
             }
+
             deviceContext->CreatedLegacyHardwareKey = FALSE;
         }
     }
@@ -201,31 +235,46 @@ DeviceGetPdoName(
 
 NTSTATUS
 DeviceWriteLegacyHardwareKey(
-    _In_  PWSTR PdoName,
     _In_  PWSTR ComPort,
     _In_  WDFDEVICE Device
 )
 {
-    WDFKEY key = NULL;
+    HANDLE hKey = NULL;
     NTSTATUS status;
-    UNICODE_STRING pdoString, comPortString;
-    DECLARE_CONST_UNICODE_STRING(deviceSubkey, SERIAL_DEVICE_MAP);
+    UNICODE_STRING comPortString;
+    UNICODE_STRING deviceSubkey;
+    RtlInitUnicodeString(&deviceSubkey, SERIAL_DEVICE_MAP);
+    PDEVICE_OBJECT deviceObject = WdfDeviceWdmGetDeviceObject(Device);
 
-    RtlInitUnicodeString(&pdoString, PdoName);
-    RtlInitUnicodeString(&comPortString, ComPort);
-
-    status = WdfDeviceOpenDevicemapKey(Device,
-        &deviceSubkey,
+    status = IoOpenDeviceRegistryKey(
+        deviceObject,
+        PLUGPLAY_REGKEY_DEVICE,
         KEY_SET_VALUE,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &key);
+        &hKey
+    );
+
     if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR, "Failed to open DEVICEMAP\\SERIALCOMM key 0x%x", status);
+        Trace(TRACE_LEVEL_ERROR, "Failed to open device registry key 0x%x", status);
         return status;
     }
 
-    status = WdfRegistryAssignUnicodeString(key, &pdoString, &comPortString);
-    WdfRegistryClose(key);
+    RtlInitUnicodeString(&comPortString, ComPort);
+
+    // Set the value "SERIALCOMM" = ComPort in the device key
+    status = ZwSetValueKey(
+        hKey,
+        &deviceSubkey,
+        0,
+        REG_SZ,
+        comPortString.Buffer,
+        (comPortString.Length + sizeof(WCHAR))
+    );
+
+    ZwClose(hKey);
+
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "Failed to set SERIALCOMM registry value 0x%x", status);
+    }
 
     return status;
 }

@@ -4,15 +4,15 @@
 
 [Version]
 Signature   = "$WINDOWS NT$"
-Class       = Ports
-ClassGuid   = {4D36E978-E325-11CE-BFC1-08002BE10318}
+Class = SoftwareDevice
+ClassGuid = {62f9c741-b25a-46ce-b54c-9bccce08b6f2}
 Provider    = %ManufacturerName%
 CatalogFile = vSerious.cat
 DriverVer   = 01/05/2025,1.0.0.1
 PnpLockdown = 1
 
 [DestinationDirs]
-File_Copy_Driver  = 12    ; Windows\System32\drivers
+File_Copy_Driver             = 12    ; Windows\System32\drivers
 WdfCoInstaller_CopyFiles_x86 = 11
 WdfCoInstaller_CopyFiles_x64 = 11
 
@@ -20,9 +20,10 @@ WdfCoInstaller_CopyFiles_x64 = 11
 1 = %DiskName%,,,""
 
 [SourceDisksFiles]
-vSerious.sys = 1,,
-WdfCoInstaller01011_x86.dll = 1,,,
-WdfCoInstaller01011_x64.dll = 1,,,
+vSerious.sys                   = 1,,
+WdfCoInstaller01011_x86.dll   = 1,,,
+WdfCoInstaller01011_x64.dll   = 1,,,
+
 ;*****************************************
 ; Manufacturer Section
 ;*****************************************
@@ -40,37 +41,36 @@ WdfCoInstaller01011_x64.dll = 1,,,
 
 ; Windows 10 x64 (1709+) with DIRID 13 support
 [Standard.NTamd64.10.0...16299]
-%vSerious.DeviceDesc% = vSerious_Install_Win10, Root\vSerious
+%vSerious.DeviceDesc% = vSerious_Install_Win10.NT, Root\vSerious
 
 ;*****************************************
 ; Install Sections
 ;*****************************************
 
-; -------- Windows 7 Install (x86 & x64) --------
+; -------- Windows 7 Install (x86) --------
 [vSerious_Install_Win7.NTx86]
 CopyFiles   = File_Copy_Driver
-AddReg      = AddCOMPortReg
 AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
 
 [vSerious_Install_Win7.NTx86.Wdf]
 KmdfService = vSerious, vSerious_wdfsect
 
 [vSerious_Install_Win7.NTx86.Services]
-AddService = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
+AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
 
 [vSerious_Install_Win7.NTx86.CoInstallers]
 CopyFiles = WdfCoInstaller_CopyFiles_x86
 
+; -------- Windows 7 Install (x64) --------
 [vSerious_Install_Win7.NTamd64]
 CopyFiles   = File_Copy_Driver
-AddReg      = AddCOMPortReg
 AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
 
 [vSerious_Install_Win7.NTamd64.Wdf]
 KmdfService = vSerious, vSerious_wdfsect
 
 [vSerious_Install_Win7.NTamd64.Services]
-AddService = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
+AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
 
 [vSerious_Install_Win7.NTamd64.CoInstallers]
 CopyFiles = WdfCoInstaller_CopyFiles_x64
@@ -78,22 +78,20 @@ CopyFiles = WdfCoInstaller_CopyFiles_x64
 ; -------- Windows 10 x64 Install (16299+) --------
 [vSerious_Install_Win10.NT]
 CopyFiles   = File_Copy_Driver
-AddReg      = AddCOMPortReg
 AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
 
 [vSerious_Install_Win10.NT.Wdf]
 KmdfService = vSerious, vSerious_wdfsect
 
 [vSerious_Install_Win10.NT.Services]
-AddService = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
+AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
+
+[vSerious_Install_Win10.NT.CoInstallers]
+CopyFiles = WdfCoInstaller_CopyFiles_x64
 
 ;*****************************************
 ; Shared Sections
 ;*****************************************
-
-[AddCOMPortReg]
-HKR,,"PortSubClass",0x00010001,0x01
-HKR,,"FriendlyName",,%vSerious.DeviceDesc%
 
 [vSerious_Service_Inst]
 DisplayName    = %vSerious.SVCDESC%
@@ -106,7 +104,7 @@ ServiceBinary  = %12%\vSerious.sys   ; System32\drivers
 vSerious.sys
 
 [vSerious_wdfsect]
-KmdfLibraryVersion = $KMDFVERSION$
+KmdfLibraryVersion = 1.11
 
 [WdfCoInstaller_CopyFiles_x86]
 WdfCoInstaller01011_x86.dll
@@ -119,8 +117,9 @@ WdfCoInstaller01011_x64.dll
 ;*****************************************
 
 [Strings]
-SPSVCINST_ASSOCSERVICE = 0x00000002
-ManufacturerName       = "stonarini"
-DiskName               = "vSerious Installation Disk"
-vSerious.DeviceDesc    = "vSerious VCOM Port"
-vSerious.SVCDESC       = "vSerious VCOM Port"
+SPSVCINST_ASSOCSERVICE     = 0x00000002
+ManufacturerName           = "stonarini"
+DiskName                   = "vSerious Installation Disk"
+vSerious.DeviceDesc        = "vSerious Virtual COM Port Controller"
+vSerious.SVCDESC           = "vSerious Virtual COM Port Controller"
+

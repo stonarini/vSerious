@@ -40,7 +40,6 @@ DeviceGetPdoName(
 
 NTSTATUS
 DeviceWriteLegacyHardwareKey(
-    _In_  PWSTR             PdoName,
     _In_  PWSTR             ComPort,
     _In_  WDFDEVICE         Device
 );
