@@ -66,49 +66,54 @@ vSeriousEvtChildListCreateDevice(
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
     deviceAttributes.SynchronizationScope = WdfSynchronizationScopeDevice;
+    // Force passive-level execution so the cleanup callback (which calls
+    // RtlDeleteRegistryValue, a PASSIVE_LEVEL-only API) is safe.
+    deviceAttributes.ExecutionLevel = WdfExecutionLevelPassive;
     deviceAttributes.EvtCleanupCallback = vSeriousPdoEvtDeviceCleanup;
 
     status = WdfDeviceCreate(&ChildInit, &deviceAttributes, &device);
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceCreate failed 0x%x", status);
-        // Do NOT call WdfDeviceInitFree on ChildInit here — when this callback
-        // returns failure the framework owns ChildInit. Calling Free ourselves
-        // is a double-free.
+        // WdfDeviceCreate itself frees ChildInit on its own failure.
         return status;
     }
+
+    // From here on, every failure path must WdfObjectDelete(device) before
+    // returning — the framework will not clean up the partially-built PDO
+    // for us.
 
     deviceContext = GetDeviceContext(device);
     deviceContext->Device = device;
     status = RtlStringCchCopyW(deviceContext->ComName,
         ARRAYSIZE(deviceContext->ComName),
         comName);
-    if (!NT_SUCCESS(status)) return status;
+    if (!NT_SUCCESS(status)) goto Fail;
 
     // Build "\DosDevices\COMx"
     status = RtlAppendUnicodeToString(&symbolicLink, SYMBOLIC_LINK_NAME_PREFIX);
-    if (!NT_SUCCESS(status)) return status;
+    if (!NT_SUCCESS(status)) goto Fail;
     status = RtlAppendUnicodeStringToString(&symbolicLink, &comNameString);
-    if (!NT_SUCCESS(status)) return status;
+    if (!NT_SUCCESS(status)) goto Fail;
 
-    // Defensive: if a previous unclean shutdown left a stale link in the
-    // object manager namespace, drop it before recreating. Ignore the result.
+    // Defensive: drop a stale link that an unclean shutdown may have left
+    // behind. Ignore the result.
     (void)IoDeleteSymbolicLink(&symbolicLink);
 
     status = WdfDeviceCreateSymbolicLink(device, &symbolicLink);
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceCreateSymbolicLink failed 0x%x", status);
-        return status;
+        goto Fail;
     }
 
     status = WdfDeviceCreateDeviceInterface(device, guid, NULL);
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceCreateDeviceInterface failed 0x%x", status);
-        return status;
+        goto Fail;
     }
 
     status = DeviceGetPdoName(deviceContext);
     if (!NT_SUCCESS(status)) {
-        return status;
+        goto Fail;
     }
 
     // PortName under PLUGPLAY_REGKEY_DEVICE — what serenum/serial.sys reads
@@ -120,7 +125,7 @@ vSeriousEvtChildListCreateDevice(
         &key);
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceOpenRegistryKey failed 0x%x", status);
-        return status;
+        goto Fail;
     }
 
     DECLARE_CONST_UNICODE_STRING(portNameLabel, REG_VALUENAME_PORTNAME);
@@ -128,7 +133,7 @@ vSeriousEvtChildListCreateDevice(
     WdfRegistryClose(key);
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR, "ERROR: WdfRegistryAssignUnicodeString failed 0x%x", status);
-        return status;
+        goto Fail;
     }
 
     // SERIALCOMM device-map — what user-mode COM enumeration looks at.
@@ -139,15 +144,19 @@ vSeriousEvtChildListCreateDevice(
     else {
         Trace(TRACE_LEVEL_ERROR, "ERROR: DeviceWriteSerialCommMap failed 0x%x", status);
         deviceContext->CreatedLegacyHardwareKey = FALSE;
-        // Non-fatal: the device may still work for direct \\.\COMx opens.
+        // Non-fatal: device may still work for direct \\.\COMx opens.
     }
 
     status = QueueCreateDevice(deviceContext);
     if (!NT_SUCCESS(status)) {
-        return status;
+        goto Fail;
     }
 
     return STATUS_SUCCESS;
+
+Fail:
+    WdfObjectDelete(device);
+    return status;
 }
 
 VOID
