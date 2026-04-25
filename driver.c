@@ -51,3 +51,16 @@ vSeriousEvtDeviceCleanup(
 
     return;
 }
+
+VOID
+vSeriousEvtDeviceFileCreate(
+    _In_ WDFDEVICE Device,
+    _In_ WDFREQUEST Request,
+    _In_ WDFFILEOBJECT FileObject
+)
+{
+    UNREFERENCED_PARAMETER(Device);
+    UNREFERENCED_PARAMETER(FileObject);
+
+    WdfRequestComplete(Request, STATUS_SUCCESS);
+}

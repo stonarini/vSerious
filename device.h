@@ -1,7 +1,5 @@
 #pragma once
 
-#define SYMBOLIC_LINK_NAME_LENGTH   32
-#define SYMBOLIC_LINK_NAME_PREFIX   L"\\DosDevices\\"
 #define REG_PATH_DEVICEMAP          L"HARDWARE\\DEVICEMAP"
 #define SERIAL_DEVICE_MAP           L"SERIALCOMM"
 #define REG_VALUENAME_PORTNAME      L"PortName"
@@ -42,6 +40,11 @@ NTSTATUS
 DeviceWriteLegacyHardwareKey(
     _In_  PWSTR             ComPort,
     _In_  WDFDEVICE         Device
+);
+
+
+VOID DevicePlugInWorkItemCallback(
+    _In_ WDFWORKITEM WorkItem
 );
 
 NTSTATUS

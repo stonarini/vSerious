@@ -340,96 +340,119 @@ vSeriousControllerEvtIoDeviceControl(
 
     case IOCTL_VSERIOUS_SET_ACTIVE:
     {
-        BOOLEAN activeFlag = FALSE;
-
         // without COM port specified, we return invalid state
         if (controllerContext->SymbolicLinkName.Buffer == NULL || controllerContext->SymbolicLinkName.Length == 0) {
+            Trace(TRACE_LEVEL_ERROR, "Symbolic link not set; cannot activate device");
             status = STATUS_INVALID_DEVICE_STATE;
             break;
         }
 
-        status = RequestCopyToBuffer(Request, &activeFlag, sizeof(activeFlag));
+        PBOOLEAN inputFlag = NULL;
+        size_t inputBufferLength = 0;
+
+        status = WdfRequestRetrieveInputBuffer(Request, sizeof(BOOLEAN), (PVOID*)&inputFlag, &inputBufferLength);
         if (!NT_SUCCESS(status)) {
-            WdfRequestComplete(Request, status);
+            Trace(TRACE_LEVEL_ERROR, "Failed to retrieve input buffer: 0x%x", status);
             break;
         }
+
+        if (inputBufferLength < sizeof(BOOLEAN)) {
+            status = STATUS_INVALID_PARAMETER;
+            Trace(TRACE_LEVEL_ERROR, "Input buffer too small for BOOLEAN");
+            break;
+        }
+
+        BOOLEAN activeFlag = *inputFlag;
+
+        WdfWaitLockAcquire(controllerContext->StateLock, NULL);
 
         if (controllerContext->Active != activeFlag) {
 
             controllerContext->Active = (activeFlag != FALSE);
 
             if (controllerContext->Active) {
-                PDEVICE_CONTEXT deviceContext;
-                status = DevicePlugIn(controllerContext, &deviceContext);
-                controllerContext->COMDevice = deviceContext;
+                WdfWorkItemEnqueue(controllerContext->PlugInWorkItem);
+                WdfWaitLockRelease(controllerContext->StateLock);
             }
             else {
+                WdfWaitLockRelease(controllerContext->StateLock);
                 status = DeviceUnplug(controllerContext);
+                Trace(TRACE_LEVEL_ERROR, "DeviceUnplug returned status: 0x%x", status);
             }
         }
         else {
             status = STATUS_SUCCESS;
+            WdfWaitLockRelease(controllerContext->StateLock);
         }
 
-        WdfRequestComplete(Request, status);
         break;
     }
+
     case IOCTL_VSERIOUS_GET_ACTIVE:
     {
         BOOLEAN active = controllerContext->Active;
         status = RequestCopyFromBuffer(Request, &active, sizeof(active));
         break;
     }
-
     case IOCTL_VSERIOUS_SET_COM_NAME:
     {
-        errno_t errorNo;
-        WCHAR portBuffer[16] = { 0 };
+        PWCHAR inputString = NULL;
         size_t inputBufferLength = 0;
-        status = WdfRequestRetrieveInputBuffer(Request, 0, NULL, &inputBufferLength);
+
+        status = WdfRequestRetrieveInputBuffer(Request, sizeof(WCHAR), (PVOID*)&inputString, &inputBufferLength);
         if (!NT_SUCCESS(status)) {
-            break;
-        }
-        size_t copySize = inputBufferLength < sizeof(portBuffer) ? inputBufferLength : sizeof(portBuffer);
-        status = RequestCopyToBuffer(Request, &portBuffer, copySize);
-        if (!NT_SUCCESS(status)) {
+            Trace(TRACE_LEVEL_ERROR, "Failed to retrieve input buffer: 0x%x", status);
             break;
         }
 
-        UNICODE_STRING symbolicLinkName;
-        symbolicLinkName.Buffer = controllerContext->SymbolicLinkBuffer;
-        symbolicLinkName.MaximumLength = sizeof(controllerContext->SymbolicLinkBuffer);
-
-        symbolicLinkName.Length = (USHORT)(wcslen(portBuffer) * sizeof(WCHAR));
-
-        if (symbolicLinkName.Length >= symbolicLinkName.MaximumLength) {
-            Trace(TRACE_LEVEL_ERROR, "Symbolic link buffer too small");
-            status = STATUS_BUFFER_OVERFLOW;
-            break;
-        }
-
-        errorNo = wcscpy_s(symbolicLinkName.Buffer,
-            SYMBOLIC_LINK_NAME_LENGTH,
-            SYMBOLIC_LINK_NAME_PREFIX);
-        if (errorNo != 0) {
-            Trace(TRACE_LEVEL_ERROR, "wcscpy_s failed with %d", errorNo);
+        if (inputBufferLength % sizeof(WCHAR) != 0) {
             status = STATUS_INVALID_PARAMETER;
             break;
-
         }
 
-        errorNo = wcscat_s(symbolicLinkName.Buffer,
-            SYMBOLIC_LINK_NAME_LENGTH,
-            portBuffer);
-        if (errorNo != 0) {
-            Trace(TRACE_LEVEL_ERROR, "wcscat_s failed with %d", errorNo);
+        size_t wcharCount = inputBufferLength / sizeof(WCHAR);
+
+        // Make sure string is null-terminated within buffer
+        BOOLEAN nullTerminated = FALSE;
+        for (size_t i = 0; i < wcharCount; ++i) {
+            if (inputString[i] == L'\0') {
+                nullTerminated = TRUE;
+                break;
+            }
+        }
+
+        if (!nullTerminated) {
             status = STATUS_INVALID_PARAMETER;
+            Trace(TRACE_LEVEL_ERROR, "Input string not null-terminated");
             break;
+        }
+        WdfWaitLockAcquire(controllerContext->StateLock, NULL);
 
+        status = RtlStringCchCopyW(
+            controllerContext->SymbolicLinkBuffer,
+            ARRAY_SIZE(controllerContext->SymbolicLinkBuffer),
+            inputString
+        );
+
+        if (NT_SUCCESS(status)) {
+            RtlInitUnicodeString(&controllerContext->SymbolicLinkName, controllerContext->SymbolicLinkBuffer);
         }
 
-        controllerContext->SymbolicLinkName = symbolicLinkName;
+        WdfWaitLockRelease(controllerContext->StateLock);
         break;
+        /*status = RtlStringCchCopyW(
+            controllerContext->SymbolicLinkBuffer,
+            sizeof(controllerContext->SymbolicLinkBuffer) / sizeof(WCHAR),
+            inputString
+        );
+        if (!NT_SUCCESS(status)) {
+            Trace(TRACE_LEVEL_ERROR, "Failed to copy input string: 0x%x", status);
+            break;
+        }
+
+        RtlInitUnicodeString(&controllerContext->SymbolicLinkName, controllerContext->SymbolicLinkBuffer);
+
+        break;*/
     }
     case IOCTL_VSERIOUS_GET_COM_NAME:
     {
