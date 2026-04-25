@@ -1,4 +1,5 @@
 #include "internal.h"
+#include <ntstrsafe.h>
 
 NTSTATUS
 QueueCreateDevice(
@@ -341,37 +342,49 @@ vSeriousControllerEvtIoDeviceControl(
     case IOCTL_VSERIOUS_SET_ACTIVE:
     {
         BOOLEAN activeFlag = FALSE;
+        WDFCHILDLIST list;
+        VSERIOUS_PDO_IDENTIFICATION_DESCRIPTION desc;
 
-        // without COM port specified, we return invalid state
-        if (controllerContext->SymbolicLinkName.Buffer == NULL || controllerContext->SymbolicLinkName.Length == 0) {
+        if (controllerContext->ComName[0] == L'\0') {
             status = STATUS_INVALID_DEVICE_STATE;
             break;
         }
 
         status = RequestCopyToBuffer(Request, &activeFlag, sizeof(activeFlag));
         if (!NT_SUCCESS(status)) {
-            WdfRequestComplete(Request, status);
             break;
         }
 
-        if (controllerContext->Active != activeFlag) {
+        if (controllerContext->Active == activeFlag) {
+            status = STATUS_SUCCESS;
+            break;
+        }
 
-            controllerContext->Active = (activeFlag != FALSE);
+        list = WdfFdoGetDefaultChildList(controllerContext->Controller);
 
-            if (controllerContext->Active) {
-                PDEVICE_CONTEXT deviceContext;
-                status = DevicePlugIn(controllerContext, &deviceContext);
-                controllerContext->COMDevice = deviceContext;
-            }
-            else {
-                status = DeviceUnplug(controllerContext);
-            }
+        WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(&desc.Header,
+            sizeof(VSERIOUS_PDO_IDENTIFICATION_DESCRIPTION));
+        RtlZeroMemory(desc.ComName, sizeof(desc.ComName));
+        status = RtlStringCchCopyW(desc.ComName,
+            ARRAYSIZE(desc.ComName),
+            controllerContext->ComName);
+        if (!NT_SUCCESS(status)) {
+            break;
+        }
+
+        if (activeFlag) {
+            status = WdfChildListAddOrUpdateChildDescriptionAsPresent(
+                list, &desc.Header, NULL);
+            // STATUS_OBJECT_NAME_EXISTS is NT_SUCCESS — already-present is fine.
         }
         else {
-            status = STATUS_SUCCESS;
+            status = WdfChildListUpdateChildDescriptionAsMissing(
+                list, &desc.Header);
         }
 
-        WdfRequestComplete(Request, status);
+        if (NT_SUCCESS(status)) {
+            controllerContext->Active = (activeFlag != FALSE);
+        }
         break;
     }
     case IOCTL_VSERIOUS_GET_ACTIVE:
@@ -383,58 +396,75 @@ vSeriousControllerEvtIoDeviceControl(
 
     case IOCTL_VSERIOUS_SET_COM_NAME:
     {
-        errno_t errorNo;
-        WCHAR portBuffer[16] = { 0 };
+        WCHAR rawBuffer[COM_NAME_MAX_CCH] = { 0 };
         size_t inputBufferLength = 0;
-        status = WdfRequestRetrieveInputBuffer(Request, 0, NULL, &inputBufferLength);
+        size_t copySize;
+        UNICODE_STRING link;
+        UNICODE_STRING prefix;
+        UNICODE_STRING bare;
+
+        if (controllerContext->Active) {
+            status = STATUS_DEVICE_BUSY;
+            break;
+        }
+
+        status = WdfRequestRetrieveInputBuffer(Request, sizeof(WCHAR), NULL, &inputBufferLength);
         if (!NT_SUCCESS(status)) {
             break;
         }
-        size_t copySize = inputBufferLength < sizeof(portBuffer) ? inputBufferLength : sizeof(portBuffer);
-        status = RequestCopyToBuffer(Request, &portBuffer, copySize);
+
+        // Leave room for the trailing null terminator regardless of input length.
+        copySize = inputBufferLength < (sizeof(rawBuffer) - sizeof(WCHAR))
+            ? inputBufferLength
+            : (sizeof(rawBuffer) - sizeof(WCHAR));
+        status = RequestCopyToBuffer(Request, rawBuffer, copySize);
         if (!NT_SUCCESS(status)) {
             break;
         }
 
-        UNICODE_STRING symbolicLinkName;
-        symbolicLinkName.Buffer = controllerContext->SymbolicLinkBuffer;
-        symbolicLinkName.MaximumLength = sizeof(controllerContext->SymbolicLinkBuffer);
-
-        symbolicLinkName.Length = (USHORT)(wcslen(portBuffer) * sizeof(WCHAR));
-
-        if (symbolicLinkName.Length >= symbolicLinkName.MaximumLength) {
-            Trace(TRACE_LEVEL_ERROR, "Symbolic link buffer too small");
-            status = STATUS_BUFFER_OVERFLOW;
-            break;
-        }
-
-        errorNo = wcscpy_s(symbolicLinkName.Buffer,
-            SYMBOLIC_LINK_NAME_LENGTH,
-            SYMBOLIC_LINK_NAME_PREFIX);
-        if (errorNo != 0) {
-            Trace(TRACE_LEVEL_ERROR, "wcscpy_s failed with %d", errorNo);
+        // Validate "COM<digit>..." shape (case-insensitive).
+        if ((rawBuffer[0] != L'C' && rawBuffer[0] != L'c') ||
+            (rawBuffer[1] != L'O' && rawBuffer[1] != L'o') ||
+            (rawBuffer[2] != L'M' && rawBuffer[2] != L'm') ||
+            rawBuffer[3] < L'0' || rawBuffer[3] > L'9') {
             status = STATUS_INVALID_PARAMETER;
             break;
-
         }
 
-        errorNo = wcscat_s(symbolicLinkName.Buffer,
-            SYMBOLIC_LINK_NAME_LENGTH,
-            portBuffer);
-        if (errorNo != 0) {
-            Trace(TRACE_LEVEL_ERROR, "wcscat_s failed with %d", errorNo);
-            status = STATUS_INVALID_PARAMETER;
+        RtlZeroMemory(controllerContext->SymbolicLinkBuffer,
+            sizeof(controllerContext->SymbolicLinkBuffer));
+
+        RtlInitEmptyUnicodeString(&link,
+            controllerContext->SymbolicLinkBuffer,
+            sizeof(controllerContext->SymbolicLinkBuffer));
+
+        RtlInitUnicodeString(&prefix, SYMBOLIC_LINK_NAME_PREFIX);
+        RtlInitUnicodeString(&bare, rawBuffer);
+
+        status = RtlAppendUnicodeStringToString(&link, &prefix);
+        if (!NT_SUCCESS(status)) {
             break;
-
+        }
+        status = RtlAppendUnicodeStringToString(&link, &bare);
+        if (!NT_SUCCESS(status)) {
+            break;
         }
 
-        controllerContext->SymbolicLinkName = symbolicLinkName;
+        controllerContext->SymbolicLinkName = link;
+
+        status = RtlStringCchCopyW(controllerContext->ComName,
+            ARRAYSIZE(controllerContext->ComName),
+            rawBuffer);
         break;
     }
     case IOCTL_VSERIOUS_GET_COM_NAME:
     {
-        UNICODE_STRING linkName = controllerContext->SymbolicLinkName;
-        status = RequestCopyFromBuffer(Request, &linkName, sizeof(linkName));
+        UNICODE_STRING* link = &controllerContext->SymbolicLinkName;
+        if (link->Buffer == NULL || link->Length == 0) {
+            status = STATUS_INVALID_DEVICE_STATE;
+            break;
+        }
+        status = RequestCopyFromBuffer(Request, link->Buffer, link->Length);
         break;
     }
 
@@ -717,6 +747,7 @@ vSeriousDeviceEvtIoWrite(
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR,
             "Error: WdfRequestRetrieveInputMemory failed 0x%x", status);
+        WdfRequestComplete(Request, status);
         return;
     }
 
@@ -725,6 +756,7 @@ vSeriousDeviceEvtIoWrite(
         (PUCHAR)WdfMemoryGetBuffer(memory, NULL),
         Length);
     if (!NT_SUCCESS(status)) {
+        WdfRequestComplete(Request, status);
         return;
     }
 

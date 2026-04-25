@@ -29,25 +29,7 @@ vSeriousEvtDeviceAdd(
     _Inout_ PWDFDEVICE_INIT DeviceInit
 )
 {
-    NTSTATUS                status;
-    PCONTROLLER_CONTEXT     controllerContext;
+    PCONTROLLER_CONTEXT controllerContext;
 
-    status = ControllerCreate(Driver, DeviceInit, &controllerContext);
-
-    return status;
-}
-
-VOID
-vSeriousEvtDeviceCleanup(
-    _In_  WDFOBJECT         Object
-)
-{
-    WDFDEVICE               device = (WDFDEVICE)Object;
-    PCONTROLLER_CONTEXT     controllerContext = GetControllerContext(device);
-
-    if (controllerContext->COMDevice != NULL) {
-        DeviceUnplug(controllerContext);
-    }
-
-    return;
+    return ControllerCreate(Driver, DeviceInit, &controllerContext);
 }

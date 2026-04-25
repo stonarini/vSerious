@@ -29,9 +29,14 @@ typedef struct _DEVICE_CONTEXT
 
     PWSTR           PdoName;
 
+    WCHAR           ComName[16];
+
 } DEVICE_CONTEXT, * PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
+
+EVT_WDF_CHILD_LIST_CREATE_DEVICE        vSeriousEvtChildListCreateDevice;
+EVT_WDF_DEVICE_CONTEXT_CLEANUP          vSeriousPdoEvtDeviceCleanup;
 
 NTSTATUS
 DeviceGetPdoName(
@@ -39,20 +44,16 @@ DeviceGetPdoName(
 );
 
 NTSTATUS
-DeviceWriteLegacyHardwareKey(
-    _In_  PWSTR             ComPort,
-    _In_  WDFDEVICE         Device
+DeviceWriteSerialCommMap(
+    _In_  WDFDEVICE         Device,
+    _In_  PWSTR             PdoName,
+    _In_  PWSTR             ComName
 );
 
 NTSTATUS
-DevicePlugIn(
-    _In_ PCONTROLLER_CONTEXT ControllerContext,
-    _Out_ PDEVICE_CONTEXT* OutDeviceContext
-);
-
-NTSTATUS
-DeviceUnplug(
-    _In_ PCONTROLLER_CONTEXT ControllerContext
+DeviceDeleteSerialCommMap(
+    _In_  WDFDEVICE         Device,
+    _In_  PWSTR             PdoName
 );
 
 ULONG
