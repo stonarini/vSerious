@@ -362,9 +362,11 @@ vSeriousControllerEvtIoDeviceControl(
 
         list = WdfFdoGetDefaultChildList(controllerContext->Controller);
 
+        // Zero the WHOLE struct (incl. any padding) so KMDF's default
+        // memcmp-based identity comparator sees a stable identity each time.
+        RtlZeroMemory(&desc, sizeof(desc));
         WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(&desc.Header,
             sizeof(VSERIOUS_PDO_IDENTIFICATION_DESCRIPTION));
-        RtlZeroMemory(desc.ComName, sizeof(desc.ComName));
         status = RtlStringCchCopyW(desc.ComName,
             ARRAYSIZE(desc.ComName),
             controllerContext->ComName);

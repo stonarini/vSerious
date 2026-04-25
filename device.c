@@ -37,6 +37,16 @@ vSeriousEvtChildListCreateDevice(
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpCallbacks);
     WdfDeviceInitSetPnpPowerEventCallbacks(ChildInit, &pnpCallbacks);
 
+    // Declare the PDO as a raw device under the Ports class. We have no INF
+    // matching "vSerious\COMx" and the bus driver itself owns all I/O on this
+    // PDO — RawDevice makes that ownership explicit to KMDF and PnP, avoiding
+    // "no function driver" WDF_VIOLATIONs.
+    status = WdfPdoInitAssignRawDevice(ChildInit, &GUID_DEVCLASS_PORTS);
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfPdoInitAssignRawDevice failed 0x%x", status);
+        return status;
+    }
+
     // Hardware ID: vSerious\COM5
     status = RtlAppendUnicodeToString(&hardwareId, L"vSerious\\");
     if (!NT_SUCCESS(status)) return status;

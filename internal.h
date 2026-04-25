@@ -4,6 +4,7 @@
 #include <ntddk.h>
 #include <wdf.h>
 #include <ntddser.h>
+#include <devguid.h>
 #include "serial.h"
 
 DRIVER_INITIALIZE DriverEntry;
