@@ -200,33 +200,18 @@ DeviceWriteSerialCommMap(
     _In_  PWSTR     ComName
 )
 {
-    NTSTATUS status;
-    WDFKEY mapKey;
-    UNICODE_STRING valueName;
-    UNICODE_STRING valueData;
-    DECLARE_CONST_UNICODE_STRING(serialComm, SERIAL_DEVICE_MAP);
+    UNREFERENCED_PARAMETER(Device);
 
-    status = WdfDeviceOpenDevicemapKey(Device,
-        &serialComm,
-        KEY_SET_VALUE,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &mapKey);
-    if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR, "Failed to open SERIALCOMM devicemap key 0x%x", status);
-        return status;
-    }
-
-    RtlInitUnicodeString(&valueName, PdoName);
-    RtlInitUnicodeString(&valueData, ComName);
-
-    status = WdfRegistryAssignUnicodeString(mapKey, &valueName, &valueData);
-    WdfRegistryClose(mapKey);
-
-    if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR, "Failed to write SERIALCOMM value 0x%x", status);
-    }
-
-    return status;
+    // RTL_REGISTRY_DEVICEMAP rooted at HKLM\HARDWARE\DEVICEMAP — used here
+    // (rather than WdfDeviceOpenDevicemapKey) because the KMDF helper requires
+    // version 1.13, but we target 1.11 for Windows 7 compatibility.
+    return RtlWriteRegistryValue(
+        RTL_REGISTRY_DEVICEMAP,
+        SERIAL_DEVICE_MAP,
+        PdoName,
+        REG_SZ,
+        ComName,
+        (ULONG)((wcslen(ComName) + 1) * sizeof(WCHAR)));
 }
 
 NTSTATUS
@@ -235,25 +220,12 @@ DeviceDeleteSerialCommMap(
     _In_  PWSTR     PdoName
 )
 {
-    NTSTATUS status;
-    WDFKEY mapKey;
-    UNICODE_STRING valueName;
-    DECLARE_CONST_UNICODE_STRING(serialComm, SERIAL_DEVICE_MAP);
+    UNREFERENCED_PARAMETER(Device);
 
-    status = WdfDeviceOpenDevicemapKey(Device,
-        &serialComm,
-        KEY_SET_VALUE,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &mapKey);
-    if (!NT_SUCCESS(status)) {
-        return status;
-    }
-
-    RtlInitUnicodeString(&valueName, PdoName);
-    status = WdfRegistryRemoveValue(mapKey, &valueName);
-    WdfRegistryClose(mapKey);
-
-    return status;
+    return RtlDeleteRegistryValue(
+        RTL_REGISTRY_DEVICEMAP,
+        SERIAL_DEVICE_MAP,
+        PdoName);
 }
 
 ULONG
