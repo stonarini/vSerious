@@ -17,7 +17,6 @@ vSeriousEvtChildListCreateDevice(
     WDF_PNPPOWER_EVENT_CALLBACKS pnpCallbacks;
     WDFKEY key;
     LPGUID guid = (LPGUID)&GUID_DEVINTERFACE_COMPORT;
-    DECLARE_UNICODE_STRING_SIZE(symbolicLink, SYMBOLIC_LINK_NAME_LENGTH);
     DECLARE_UNICODE_STRING_SIZE(hardwareId, 64);
     UNICODE_STRING comNameString;
 
@@ -99,21 +98,10 @@ vSeriousEvtChildListCreateDevice(
         comName);
     if (!NT_SUCCESS(status)) goto Fail;
 
-    // Build "\DosDevices\COMx"
-    status = RtlAppendUnicodeToString(&symbolicLink, SYMBOLIC_LINK_NAME_PREFIX);
-    if (!NT_SUCCESS(status)) goto Fail;
-    status = RtlAppendUnicodeStringToString(&symbolicLink, &comNameString);
-    if (!NT_SUCCESS(status)) goto Fail;
-
-    // Defensive: drop a stale link that an unclean shutdown may have left
-    // behind. Ignore the result.
-    (void)IoDeleteSymbolicLink(&symbolicLink);
-
-    status = WdfDeviceCreateSymbolicLink(device, &symbolicLink);
-    if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceCreateSymbolicLink failed 0x%x", status);
-        goto Fail;
-    }
+    // No explicit WdfDeviceCreateSymbolicLink — the OS's COM-port subsystem
+    // creates \DosDevices\COMx for us based on the PortName registry value
+    // we write below plus the COMPORT device interface. Creating one here
+    // would either collide or trip a KMDF consistency check.
 
     status = WdfDeviceCreateDeviceInterface(device, guid, NULL);
     if (!NT_SUCCESS(status)) {
