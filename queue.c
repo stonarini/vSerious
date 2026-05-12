@@ -259,7 +259,6 @@ vSeriousControllerEvtIoDeviceControl(
     PQUEUE_CONTEXT          queueContext = GetQueueContext(Queue);
     PCONTROLLER_CONTEXT     controllerContext = queueContext->ControllerContext;
     UNREFERENCED_PARAMETER(OutputBufferLength);
-    UNREFERENCED_PARAMETER(InputBufferLength);
 
     Trace(TRACE_LEVEL_INFO,
         "EvtIoDeviceControl 0x%x", IoControlCode);
@@ -399,7 +398,6 @@ vSeriousControllerEvtIoDeviceControl(
     case IOCTL_VSERIOUS_SET_COM_NAME:
     {
         WCHAR rawBuffer[COM_NAME_MAX_CCH] = { 0 };
-        size_t inputBufferLength = 0;
         size_t copySize;
         UNICODE_STRING link;
         UNICODE_STRING prefix;
@@ -410,14 +408,14 @@ vSeriousControllerEvtIoDeviceControl(
             break;
         }
 
-        status = WdfRequestRetrieveInputBuffer(Request, sizeof(WCHAR), NULL, &inputBufferLength);
-        if (!NT_SUCCESS(status)) {
+        if (InputBufferLength < sizeof(WCHAR)) {
+            status = STATUS_INVALID_PARAMETER;
             break;
         }
 
         // Leave room for the trailing null terminator regardless of input length.
-        copySize = inputBufferLength < (sizeof(rawBuffer) - sizeof(WCHAR))
-            ? inputBufferLength
+        copySize = InputBufferLength < (sizeof(rawBuffer) - sizeof(WCHAR))
+            ? InputBufferLength
             : (sizeof(rawBuffer) - sizeof(WCHAR));
         status = RequestCopyToBuffer(Request, rawBuffer, copySize);
         if (!NT_SUCCESS(status)) {
