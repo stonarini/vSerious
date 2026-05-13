@@ -104,7 +104,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="vSerious.inf" />
-    <Inf Include="vSeriousPort.inf" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- vSeriousPort.inf is a null-install INF for child PDOs (Class=Ports).
+         Not a Driver Package member — MSBuild expects one INF per package and
+         the two INFs share vSerious.cat. We just need it copied to the
+         output dir so reload.bat can pnputil-install it. -->
+    <None Include="vSeriousPort.inf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <DeploymentContent>true</DeploymentContent>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
