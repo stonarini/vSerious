@@ -14,7 +14,7 @@ ClassGuid   = {4D36E978-E325-11CE-BFC1-08002BE10318}
 Provider    = %ManufacturerName%
 DriverVer   = 01/05/2025,1.0.0.1
 PnpLockdown = 1
-CatalogFile = vSeriousPort.cat
+CatalogFile = vSerious.cat
 
 [Manufacturer]
 %ManufacturerName% = Standard,NTx86,NTamd64,NTamd64.10.0...16299
