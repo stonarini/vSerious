@@ -98,10 +98,24 @@ vSeriousEvtChildListCreateDevice(
         comName);
     if (!NT_SUCCESS(status)) goto Fail;
 
-    // No explicit WdfDeviceCreateSymbolicLink — the OS's COM-port subsystem
-    // creates \DosDevices\COMx for us based on the PortName registry value
-    // we write below plus the COMPORT device interface. Creating one here
-    // would either collide or trip a KMDF consistency check.
+    // Without serial.sys attached (we're a raw PDO), nothing creates
+    // \DosDevices\COMx for us, so user-mode CreateFile(\\.\COMx) would fail
+    // with ERROR_FILE_NOT_FOUND. Create the link here; KMDF tracks it with
+    // the device and tears it down on PDO removal.
+    {
+        DECLARE_UNICODE_STRING_SIZE(symbolicLink, 32);
+        UNICODE_STRING prefix;
+        RtlInitUnicodeString(&prefix, SYMBOLIC_LINK_NAME_PREFIX);
+        status = RtlAppendUnicodeStringToString(&symbolicLink, &prefix);
+        if (!NT_SUCCESS(status)) goto Fail;
+        status = RtlAppendUnicodeStringToString(&symbolicLink, &comNameString);
+        if (!NT_SUCCESS(status)) goto Fail;
+        status = WdfDeviceCreateSymbolicLink(device, &symbolicLink);
+        if (!NT_SUCCESS(status)) {
+            Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceCreateSymbolicLink failed 0x%x", status);
+            goto Fail;
+        }
+    }
 
     status = WdfDeviceCreateDeviceInterface(device, guid, NULL);
     if (!NT_SUCCESS(status)) {
