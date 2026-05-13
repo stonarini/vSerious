@@ -26,7 +26,6 @@ vSeriousEvtChildListCreateDevice(
     PVSERIOUS_PDO_IDENTIFICATION_DESCRIPTION desc;
     PCWSTR comName;
     WDF_PNPPOWER_EVENT_CALLBACKS pnpCallbacks;
-    WDFKEY key;
     LPGUID guid = (LPGUID)&GUID_DEVINTERFACE_COMPORT;
     DECLARE_UNICODE_STRING_SIZE(hardwareId, 64);
     UNICODE_STRING comNameString;
@@ -143,25 +142,12 @@ vSeriousEvtChildListCreateDevice(
         deviceContext->CreatedSymbolicLink = TRUE;
     }
 
-    // PortName under PLUGPLAY_REGKEY_DEVICE — what serenum/serial.sys reads
-    // to know which COM letter to expose for this PDO.
-    status = WdfDeviceOpenRegistryKey(device,
-        PLUGPLAY_REGKEY_DEVICE,
-        KEY_SET_VALUE,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &key);
-    if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceOpenRegistryKey failed 0x%x", status);
-        goto Fail;
-    }
-
-    DECLARE_CONST_UNICODE_STRING(portNameLabel, REG_VALUENAME_PORTNAME);
-    status = WdfRegistryAssignUnicodeString(key, &portNameLabel, &comNameString);
-    WdfRegistryClose(key);
-    if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfRegistryAssignUnicodeString failed 0x%x", status);
-        goto Fail;
-    }
+    // PortName under PLUGPLAY_REGKEY_DEVICE is what serial.sys reads to pick
+    // the COM letter — we have no serial.sys attached, and the key doesn't
+    // exist yet inside EvtChildListCreateDevice anyway (WdfDeviceOpenRegistryKey
+    // returns STATUS_INVALID_DEVICE_STATE). User-mode discovers the port via
+    // the SERIALCOMM device-map entry and the \DosDevices\COMx symlink, so
+    // skipping PortName is fine.
 
     // SERIALCOMM device-map — what user-mode COM enumeration looks at.
     status = DeviceWriteSerialCommMap(device, deviceContext->PdoName, deviceContext->ComName);
