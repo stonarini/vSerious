@@ -32,14 +32,17 @@ CatalogFile = vSerious.cat
 %vSerious.PortDesc% = vSerious_Port_Install, vSerious\Port
 
 [vSerious_Port_Install]
-; vSerious.sys (the bus driver) handles all I/O on this PDO in raw mode.
-; The AddReg below is the minimum pnputil accepts as an install action —
-; without it: "Hardware does not have an associated install". We only need
-; the Class assignment from [Version] to take effect.
 AddReg = vSerious_Port_AddReg
 
 [vSerious_Port_AddReg]
 HKR,,FriendlyName,,"%vSerious.PortDesc%"
+
+; Associate the existing vSerious bus-driver service with this PDO. The PDO
+; is raw (WdfPdoInitAssignRawDevice), so no separate function driver is
+; loaded — but PnP/pnputil still require a service association. Flag 2 =
+; SPSVCINST_ASSOCSERVICE: associate, do not (re)install the service.
+[vSerious_Port_Install.NT.Services]
+AddService = vSerious, 2
 
 [Strings]
 ManufacturerName    = "stonarini"
