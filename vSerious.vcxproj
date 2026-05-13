@@ -106,16 +106,6 @@
     <Inf Include="vSerious.inf" />
   </ItemGroup>
   <ItemGroup>
-    <!-- vSeriousPort.inf is a null-install INF for child PDOs (Class=Ports).
-         Not a Driver Package member — MSBuild expects one INF per package and
-         the two INFs share vSerious.cat. We just need it copied to the
-         output dir so reload.bat can pnputil-install it. -->
-    <None Include="vSeriousPort.inf">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <DeploymentContent>true</DeploymentContent>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
@@ -139,6 +129,10 @@
       <DestinationFolders Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)\$(ProjectName)</DestinationFolders>
     </CopyFileToFolders>
     <CopyFileToFolders Include="..\..\..\..\..\Program Files (x86)\Windows Kits\8.0\redist\wdf\x86\WdfCoInstaller01011_x86.dll">
+      <FileType>Document</FileType>
+      <DestinationFolders Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)\$(ProjectName)</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="vSeriousPort.inf">
       <FileType>Document</FileType>
       <DestinationFolders Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)\$(ProjectName)</DestinationFolders>
     </CopyFileToFolders>
