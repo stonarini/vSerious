@@ -313,4 +313,17 @@ FAILURE_ID_HASH:  {8829f546-6959-ce4b-4e99-051b92778b31}
 
 Followup:     MachineOwner
 ---------
+1: kd> lmvm vSerious
+Browse full module list
+start             end                 module name
+fffff802`42ad0000 fffff802`42adc000   vSerious T (no symbols)           
+    Loaded symbol image file: vSerious.sys
+    Image path: vSerious.sys
+    Image name: vSerious.sys
+    Browse all global symbols  functions  data
+    Timestamp:        Wed May 13 00:42:21 2026 (6A03BADD)
+    CheckSum:         0000CD46
+    ImageSize:        0000C000
+    Translations:     0000.04b0 0000.04e4 0409.04b0 0409.04e4
+    Information from resource tables:
 
