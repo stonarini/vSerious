@@ -98,25 +98,6 @@ vSeriousEvtChildListCreateDevice(
         comName);
     if (!NT_SUCCESS(status)) goto Fail;
 
-    // Without serial.sys attached (we're a raw PDO), nothing creates
-    // \DosDevices\COMx for us, so user-mode CreateFile(\\.\COMx) would fail
-    // with ERROR_FILE_NOT_FOUND. Create the link here; KMDF tracks it with
-    // the device and tears it down on PDO removal.
-    {
-        DECLARE_UNICODE_STRING_SIZE(symbolicLink, 32);
-        UNICODE_STRING prefix;
-        RtlInitUnicodeString(&prefix, SYMBOLIC_LINK_NAME_PREFIX);
-        status = RtlAppendUnicodeStringToString(&symbolicLink, &prefix);
-        if (!NT_SUCCESS(status)) goto Fail;
-        status = RtlAppendUnicodeStringToString(&symbolicLink, &comNameString);
-        if (!NT_SUCCESS(status)) goto Fail;
-        status = WdfDeviceCreateSymbolicLink(device, &symbolicLink);
-        if (!NT_SUCCESS(status)) {
-            Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceCreateSymbolicLink failed 0x%x", status);
-            goto Fail;
-        }
-    }
-
     status = WdfDeviceCreateDeviceInterface(device, guid, NULL);
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceCreateDeviceInterface failed 0x%x", status);
@@ -126,6 +107,29 @@ vSeriousEvtChildListCreateDevice(
     status = DeviceGetPdoName(deviceContext);
     if (!NT_SUCCESS(status)) {
         goto Fail;
+    }
+
+    // Without serial.sys attached (we're a raw PDO), nothing creates
+    // \DosDevices\COMx for us, so user-mode CreateFile(\\.\COMx) would fail
+    // with ERROR_FILE_NOT_FOUND. WdfDeviceCreateSymbolicLink refuses to
+    // create links on PDOs (STATUS_INVALID_DEVICE_STATE), so use the raw
+    // Io API and unwind it ourselves in EvtDeviceCleanup.
+    {
+        DECLARE_UNICODE_STRING_SIZE(symbolicLink, 32);
+        UNICODE_STRING prefix;
+        UNICODE_STRING pdoNameString;
+        RtlInitUnicodeString(&prefix, SYMBOLIC_LINK_NAME_PREFIX);
+        status = RtlAppendUnicodeStringToString(&symbolicLink, &prefix);
+        if (!NT_SUCCESS(status)) goto Fail;
+        status = RtlAppendUnicodeStringToString(&symbolicLink, &comNameString);
+        if (!NT_SUCCESS(status)) goto Fail;
+        RtlInitUnicodeString(&pdoNameString, deviceContext->PdoName);
+        status = IoCreateSymbolicLink(&symbolicLink, &pdoNameString);
+        if (!NT_SUCCESS(status)) {
+            Trace(TRACE_LEVEL_ERROR, "ERROR: IoCreateSymbolicLink failed 0x%x", status);
+            goto Fail;
+        }
+        deviceContext->CreatedSymbolicLink = TRUE;
     }
 
     // PortName under PLUGPLAY_REGKEY_DEVICE — what serenum/serial.sys reads
@@ -177,6 +181,19 @@ vSeriousPdoEvtDeviceCleanup(
 {
     WDFDEVICE device = (WDFDEVICE)Object;
     PDEVICE_CONTEXT deviceContext = GetDeviceContext(device);
+
+    if (deviceContext->CreatedSymbolicLink) {
+        DECLARE_UNICODE_STRING_SIZE(symbolicLink, 32);
+        UNICODE_STRING prefix;
+        UNICODE_STRING comNameString;
+        RtlInitUnicodeString(&prefix, SYMBOLIC_LINK_NAME_PREFIX);
+        RtlInitUnicodeString(&comNameString, deviceContext->ComName);
+        if (NT_SUCCESS(RtlAppendUnicodeStringToString(&symbolicLink, &prefix)) &&
+            NT_SUCCESS(RtlAppendUnicodeStringToString(&symbolicLink, &comNameString))) {
+            (void)IoDeleteSymbolicLink(&symbolicLink);
+        }
+        deviceContext->CreatedSymbolicLink = FALSE;
+    }
 
     if (deviceContext->CreatedLegacyHardwareKey && deviceContext->PdoName != NULL) {
         (void)DeviceDeleteSerialCommMap(device, deviceContext->PdoName);

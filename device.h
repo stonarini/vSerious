@@ -25,6 +25,8 @@ typedef struct _DEVICE_CONTEXT
 
     BOOLEAN         CreatedLegacyHardwareKey;
 
+    BOOLEAN         CreatedSymbolicLink;
+
     WDFMEMORY       PdoNameMemory;
 
     PWSTR           PdoName;
