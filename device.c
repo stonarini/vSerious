@@ -1,6 +1,17 @@
 #include "internal.h"
 #include <ntstrsafe.h>
 
+// ObQueryNameString lives in ntifs.h, which conflicts with KMDF's header
+// chain. Forward-declare it here so we can read the WDM device-object name
+// without pulling in the IFS kit.
+NTKERNELAPI NTSTATUS NTAPI
+ObQueryNameString(
+    _In_ PVOID Object,
+    _Out_writes_bytes_opt_(Length) POBJECT_NAME_INFORMATION ObjectNameInfo,
+    _In_ ULONG Length,
+    _Out_ PULONG ReturnLength
+);
+
 NTSTATUS
 vSeriousEvtChildListCreateDevice(
     _In_ WDFCHILDLIST ChildList,
@@ -195,7 +206,7 @@ vSeriousPdoEvtDeviceCleanup(
         deviceContext->CreatedSymbolicLink = FALSE;
     }
 
-    if (deviceContext->CreatedLegacyHardwareKey && deviceContext->PdoName != NULL) {
+    if (deviceContext->CreatedLegacyHardwareKey) {
         (void)DeviceDeleteSerialCommMap(device, deviceContext->PdoName);
         deviceContext->CreatedLegacyHardwareKey = FALSE;
     }
@@ -207,24 +218,29 @@ DeviceGetPdoName(
 )
 {
     NTSTATUS status;
-    WDFMEMORY memory;
+    PDEVICE_OBJECT wdmDevice;
+    ULONG returnLength = 0;
+    UCHAR scratchBuffer[256];
+    POBJECT_NAME_INFORMATION nameInfo = (POBJECT_NAME_INFORMATION)scratchBuffer;
 
-    // Match the WDK virtualserial sample: WDF_NO_OBJECT_ATTRIBUTES defaults
-    // the memory parent to the device, which is what we want.
-    status = WdfDeviceAllocAndQueryProperty(
-        DeviceContext->Device,
-        DevicePropertyPhysicalDeviceObjectName,
-        NonPagedPoolNx,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &memory);
+    // DevicePropertyPhysicalDeviceObjectName fails with STATUS_INVALID_DEVICE_STATE
+    // inside EvtChildListCreateDevice — that property is meant for FDOs/filters
+    // querying their underlying PDO. Read the WDM object name directly instead.
+    wdmDevice = WdfDeviceWdmGetDeviceObject(DeviceContext->Device);
+
+    status = ObQueryNameString(wdmDevice, nameInfo, sizeof(scratchBuffer), &returnLength);
     if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR, "WdfDeviceAllocAndQueryProperty(PdoName) failed 0x%x", status);
+        Trace(TRACE_LEVEL_ERROR, "ObQueryNameString failed 0x%x", status);
         return status;
     }
 
-    DeviceContext->PdoNameMemory = memory;
-    DeviceContext->PdoName = (PWCHAR)WdfMemoryGetBuffer(memory, NULL);
+    if (nameInfo->Name.Length >= sizeof(DeviceContext->PdoName)) {
+        Trace(TRACE_LEVEL_ERROR, "PdoName too large: %u bytes", nameInfo->Name.Length);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
 
+    RtlCopyMemory(DeviceContext->PdoName, nameInfo->Name.Buffer, nameInfo->Name.Length);
+    DeviceContext->PdoName[nameInfo->Name.Length / sizeof(WCHAR)] = L'\0';
     return STATUS_SUCCESS;
 }
 

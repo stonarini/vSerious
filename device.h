@@ -27,9 +27,7 @@ typedef struct _DEVICE_CONTEXT
 
     BOOLEAN         CreatedSymbolicLink;
 
-    WDFMEMORY       PdoNameMemory;
-
-    PWSTR           PdoName;
+    WCHAR           PdoName[64];
 
     WCHAR           ComName[16];
 
