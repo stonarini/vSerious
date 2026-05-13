@@ -207,20 +207,18 @@ DeviceGetPdoName(
 )
 {
     NTSTATUS status;
-    WDF_OBJECT_ATTRIBUTES attributes;
     WDFMEMORY memory;
 
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    attributes.ParentObject = DeviceContext->Device;
-
+    // Match the WDK virtualserial sample: WDF_NO_OBJECT_ATTRIBUTES defaults
+    // the memory parent to the device, which is what we want.
     status = WdfDeviceAllocAndQueryProperty(
         DeviceContext->Device,
         DevicePropertyPhysicalDeviceObjectName,
         NonPagedPoolNx,
-        &attributes,
+        WDF_NO_OBJECT_ATTRIBUTES,
         &memory);
     if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR, "Failed to query PDO name");
+        Trace(TRACE_LEVEL_ERROR, "WdfDeviceAllocAndQueryProperty(PdoName) failed 0x%x", status);
         return status;
     }
 
