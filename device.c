@@ -76,7 +76,11 @@ vSeriousEvtChildListCreateDevice(
     status = WdfPdoInitAddHardwareID(ChildInit, &hardwareId);
     if (!NT_SUCCESS(status)) return status;
 
-    status = WdfPdoInitAddCompatibleID(ChildInit, &hardwareId);
+    // Generic compatible ID so vSeriousPort.inf can match every child PDO
+    // without enumerating every possible COMx hardware ID. vSeriousPort.inf
+    // is what assigns Class=Ports so Device Manager categorizes correctly.
+    DECLARE_CONST_UNICODE_STRING(compatibleId, L"vSerious\\Port");
+    status = WdfPdoInitAddCompatibleID(ChildInit, &compatibleId);
     if (!NT_SUCCESS(status)) return status;
 
     DECLARE_CONST_UNICODE_STRING(deviceDesc, L"vSerious Virtual COM Port");

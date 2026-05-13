@@ -1,0 +1,40 @@
+;
+; vSeriousPort.inf - Null-install INF for vSerious child COM port PDOs.
+;
+; Sole purpose: tell PnP that any "vSerious\Port" PDO belongs to the Ports
+; setup class so Device Manager categorizes it correctly. The bus driver
+; (vSerious.sys) owns all I/O via raw-mode PDOs — no function driver,
+; no service, no files to copy.
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Ports
+ClassGuid   = {4D36E978-E325-11CE-BFC1-08002BE10318}
+Provider    = %ManufacturerName%
+DriverVer   = 01/05/2025,1.0.0.1
+PnpLockdown = 1
+CatalogFile = vSeriousPort.cat
+
+[Manufacturer]
+%ManufacturerName% = Standard,NTx86,NTamd64,NTamd64.10.0...16299
+
+; Windows 7 x86
+[Standard.NTx86]
+%vSerious.PortDesc% = vSerious_Port_Install, vSerious\Port
+
+; Windows 7 x64
+[Standard.NTamd64]
+%vSerious.PortDesc% = vSerious_Port_Install, vSerious\Port
+
+; Windows 10 x64 (1709+)
+[Standard.NTamd64.10.0...16299]
+%vSerious.PortDesc% = vSerious_Port_Install, vSerious\Port
+
+[vSerious_Port_Install]
+; Intentionally empty — vSerious.sys (the bus driver) handles all I/O on
+; this PDO in raw mode. We only need the Class assignment from [Version].
+
+[Strings]
+ManufacturerName    = "stonarini"
+vSerious.PortDesc   = "vSerious Virtual COM Port"
