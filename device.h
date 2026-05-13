@@ -37,6 +37,7 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
 EVT_WDF_CHILD_LIST_CREATE_DEVICE        vSeriousEvtChildListCreateDevice;
 EVT_WDF_DEVICE_CONTEXT_CLEANUP          vSeriousPdoEvtDeviceCleanup;
+EVT_WDF_DEVICE_SELF_MANAGED_IO_INIT     vSeriousPdoEvtSelfManagedIoInit;
 
 NTSTATUS
 DeviceGetPdoName(

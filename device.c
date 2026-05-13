@@ -44,6 +44,11 @@ vSeriousEvtChildListCreateDevice(
     RtlInitUnicodeString(&comNameString, comName);
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpCallbacks);
+    // PortName has to be written after PnP registers the PDO — the device's
+    // hardware key doesn't exist inside EvtChildListCreateDevice. Defer to
+    // EvtDeviceSelfManagedIoInit so Device Manager appends "(COMx)" to the
+    // friendly name.
+    pnpCallbacks.EvtDeviceSelfManagedIoInit = vSeriousPdoEvtSelfManagedIoInit;
     WdfDeviceInitSetPnpPowerEventCallbacks(ChildInit, &pnpCallbacks);
 
     // Declare the PDO as a raw device under the Ports class. We have no INF
@@ -181,6 +186,38 @@ vSeriousEvtChildListCreateDevice(
 
 Fail:
     return status;
+}
+
+NTSTATUS
+vSeriousPdoEvtSelfManagedIoInit(
+    _In_ WDFDEVICE Device
+)
+{
+    NTSTATUS status;
+    PDEVICE_CONTEXT deviceContext = GetDeviceContext(Device);
+    WDFKEY key;
+    UNICODE_STRING comNameString;
+    DECLARE_CONST_UNICODE_STRING(portNameLabel, REG_VALUENAME_PORTNAME);
+
+    status = WdfDeviceOpenRegistryKey(Device,
+        PLUGPLAY_REGKEY_DEVICE,
+        KEY_SET_VALUE,
+        WDF_NO_OBJECT_ATTRIBUTES,
+        &key);
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceOpenRegistryKey(SelfManagedIoInit) failed 0x%x", status);
+        return status;
+    }
+
+    RtlInitUnicodeString(&comNameString, deviceContext->ComName);
+    status = WdfRegistryAssignUnicodeString(key, &portNameLabel, &comNameString);
+    WdfRegistryClose(key);
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfRegistryAssignUnicodeString(PortName) failed 0x%x", status);
+        return status;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 VOID
