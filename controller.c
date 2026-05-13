@@ -52,7 +52,8 @@ ControllerCreate(
 
 	status = QueueCreateController(controllerContext);
 	if (!NT_SUCCESS(status)) {
-		WdfObjectDelete(device);
+		// Framework auto-deletes the device when EvtDriverDeviceAdd returns
+		// !NT_SUCCESS. Calling WdfObjectDelete here trips a Verifier break.
 		return status;
 	}
 

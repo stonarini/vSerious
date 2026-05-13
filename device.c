@@ -87,9 +87,9 @@ vSeriousEvtChildListCreateDevice(
         return status;
     }
 
-    // From here on, every failure path must WdfObjectDelete(device) before
-    // returning — the framework will not clean up the partially-built PDO
-    // for us.
+    // From here on, returning a failure status is enough — KMDF auto-deletes
+    // the partially-built PDO when EvtChildListCreateDevice returns !NT_SUCCESS.
+    // Calling WdfObjectDelete ourselves trips a WDF Verifier break.
 
     deviceContext = GetDeviceContext(device);
     deviceContext->Device = device;
@@ -153,7 +153,6 @@ vSeriousEvtChildListCreateDevice(
     return STATUS_SUCCESS;
 
 Fail:
-    WdfObjectDelete(device);
     return status;
 }
 
