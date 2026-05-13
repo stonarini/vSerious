@@ -83,6 +83,18 @@ vSeriousEvtChildListCreateDevice(
     WdfDeviceInitSetDeviceType(ChildInit, FILE_DEVICE_SERIAL_PORT);
     WdfDeviceInitSetExclusive(ChildInit, FALSE);
 
+    // Default PDO security denies user-mode opens — CreateFile(\\.\COMx)
+    // returns ERROR_ACCESS_DENIED. Grant the same access the WDK virtualserial
+    // sample uses: SYS full, Admins/Users/RestrictedCode RWX. Operators on
+    // CNC machines need to open the port without admin rights.
+    DECLARE_CONST_UNICODE_STRING(deviceSddl,
+        L"D:P(A;;GA;;;SY)(A;;GRGWGX;;;BA)(A;;GRGWGX;;;WD)(A;;GRGWGX;;;RC)");
+    status = WdfDeviceInitAssignSDDLString(ChildInit, &deviceSddl);
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceInitAssignSDDLString failed 0x%x", status);
+        return status;
+    }
+
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
     deviceAttributes.SynchronizationScope = WdfSynchronizationScopeDevice;
     // Force passive-level execution so the cleanup callback (which calls
