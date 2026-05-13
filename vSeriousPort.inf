@@ -32,8 +32,14 @@ CatalogFile = vSerious.cat
 %vSerious.PortDesc% = vSerious_Port_Install, vSerious\Port
 
 [vSerious_Port_Install]
-; Intentionally empty — vSerious.sys (the bus driver) handles all I/O on
-; this PDO in raw mode. We only need the Class assignment from [Version].
+; vSerious.sys (the bus driver) handles all I/O on this PDO in raw mode.
+; The AddReg below is the minimum pnputil accepts as an install action —
+; without it: "Hardware does not have an associated install". We only need
+; the Class assignment from [Version] to take effect.
+AddReg = vSerious_Port_AddReg
+
+[vSerious_Port_AddReg]
+HKR,,FriendlyName,,"%vSerious.PortDesc%"
 
 [Strings]
 ManufacturerName    = "stonarini"
