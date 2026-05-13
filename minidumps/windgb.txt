@@ -1,0 +1,316 @@
+
+************* Preparing the environment for Debugger Extensions Gallery repositories **************
+   ExtensionRepository : Implicit
+   UseExperimentalFeatureForNugetShare : true
+   AllowNugetExeUpdate : true
+   NonInteractiveNuget : true
+   AllowNugetMSCredentialProviderInstall : true
+   AllowParallelInitializationOfLocalRepositories : true
+
+   EnableRedirectToV8JsProvider : false
+
+   -- Configuring repositories
+      ----> Repository : LocalInstalled, Enabled: true
+      ----> Repository : UserExtensions, Enabled: true
+
+>>>>>>>>>>>>> Preparing the environment for Debugger Extensions Gallery repositories completed, duration 0.219 seconds
+
+************* Waiting for Debugger Extensions Gallery to Initialize **************
+
+>>>>>>>>>>>>> Waiting for Debugger Extensions Gallery to Initialize completed, duration 0.594 seconds
+   ----> Repository : UserExtensions, Enabled: true, Packages count: 0
+   ----> Repository : LocalInstalled, Enabled: true, Packages count: 29
+
+Microsoft (R) Windows Debugger Version 10.0.26100.4188 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+
+Loading Dump File [C:\Windows\Minidump\051326-8453-01.dmp]
+Mini Kernel Dump File: Only registers and stack trace are available
+
+Symbol search path is: srv*
+Executable search path is: 
+Windows 10 Kernel Version 19041 MP (2 procs) Free x64
+Product: WinNt, suite: TerminalServer SingleUserTS
+Kernel base = 0xfffff806`54816000 PsLoadedModuleList = 0xfffff806`55440420
+Debug session time: Wed May 13 11:34:27.003 2026 (UTC + 1:00)
+System Uptime: 0 days 0:02:37.894
+Loading Kernel Symbols
+...............................................................
+................................................................
+..........................................
+Loading User Symbols
+
+Loading unloaded module list
+......
+For analysis of this file, run !analyze -v
+1: kd> !analyze -v
+*******************************************************************************
+*                                                                             *
+*                        Bugcheck Analysis                                    *
+*                                                                             *
+*******************************************************************************
+
+SYSTEM_THREAD_EXCEPTION_NOT_HANDLED (7e)
+This is a very common BugCheck.  Usually the exception address pinpoints
+the driver/function that caused the problem.  Always note this address
+as well as the link date of the driver/image that contains this address.
+Arguments:
+Arg1: ffffffff80000003, The exception code that was not handled
+Arg2: fffff80654c1cf60, The address that the exception occurred at
+Arg3: fffffb8648341a78, Exception Record Address
+Arg4: fffffb86483412b0, Context Record Address
+
+Debugging Details:
+------------------
+
+*** WARNING: Unable to verify timestamp for vSerious.sys
+
+KEY_VALUES_STRING: 1
+
+    Key  : Analysis.CPU.mSec
+    Value: 3718
+
+    Key  : Analysis.Elapsed.mSec
+    Value: 7926
+
+    Key  : Analysis.IO.Other.Mb
+    Value: 3
+
+    Key  : Analysis.IO.Read.Mb
+    Value: 0
+
+    Key  : Analysis.IO.Write.Mb
+    Value: 19
+
+    Key  : Analysis.Init.CPU.mSec
+    Value: 2233
+
+    Key  : Analysis.Init.Elapsed.mSec
+    Value: 24799
+
+    Key  : Analysis.Memory.CommitPeak.Mb
+    Value: 102
+
+    Key  : Bugcheck.Code.LegacyAPI
+    Value: 0x1000007e
+
+    Key  : Dump.Attributes.AsUlong
+    Value: 8
+
+    Key  : Dump.Attributes.KernelGeneratedTriageDump
+    Value: 1
+
+    Key  : Failure.Bucket
+    Value: 0x7E_80000003_vSerious!unknown_function
+
+    Key  : Failure.Hash
+    Value: {8829f546-6959-ce4b-4e99-051b92778b31}
+
+    Key  : Hypervisor.Enlightenments.Value
+    Value: 20836
+
+    Key  : Hypervisor.Enlightenments.ValueHex
+    Value: 5164
+
+    Key  : Hypervisor.Flags.AnyHypervisorPresent
+    Value: 1
+
+    Key  : Hypervisor.Flags.ApicEnlightened
+    Value: 0
+
+    Key  : Hypervisor.Flags.ApicVirtualizationAvailable
+    Value: 0
+
+    Key  : Hypervisor.Flags.AsyncMemoryHint
+    Value: 0
+
+    Key  : Hypervisor.Flags.CoreSchedulerRequested
+    Value: 0
+
+    Key  : Hypervisor.Flags.CpuManager
+    Value: 0
+
+    Key  : Hypervisor.Flags.DeprecateAutoEoi
+    Value: 1
+
+    Key  : Hypervisor.Flags.DynamicCpuDisabled
+    Value: 0
+
+    Key  : Hypervisor.Flags.Epf
+    Value: 0
+
+    Key  : Hypervisor.Flags.ExtendedProcessorMasks
+    Value: 1
+
+    Key  : Hypervisor.Flags.HardwareMbecAvailable
+    Value: 0
+
+    Key  : Hypervisor.Flags.MaxBankNumber
+    Value: 0
+
+    Key  : Hypervisor.Flags.MemoryZeroingControl
+    Value: 0
+
+    Key  : Hypervisor.Flags.NoExtendedRangeFlush
+    Value: 1
+
+    Key  : Hypervisor.Flags.NoNonArchCoreSharing
+    Value: 0
+
+    Key  : Hypervisor.Flags.Phase0InitDone
+    Value: 1
+
+    Key  : Hypervisor.Flags.PowerSchedulerQos
+    Value: 0
+
+    Key  : Hypervisor.Flags.RootScheduler
+    Value: 0
+
+    Key  : Hypervisor.Flags.SynicAvailable
+    Value: 1
+
+    Key  : Hypervisor.Flags.UseQpcBias
+    Value: 0
+
+    Key  : Hypervisor.Flags.Value
+    Value: 536760
+
+    Key  : Hypervisor.Flags.ValueHex
+    Value: 830b8
+
+    Key  : Hypervisor.Flags.VpAssistPage
+    Value: 1
+
+    Key  : Hypervisor.Flags.VsmAvailable
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.AccessStats
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.CrashdumpEnlightened
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.CreateVirtualProcessor
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.DisableHyperthreading
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.HostTimelineSync
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.HypervisorDebuggingEnabled
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.IsHyperV
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.LivedumpEnlightened
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.MapDeviceInterrupt
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.MceEnlightened
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.Nested
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.StartLogicalProcessor
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.Value
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.ValueHex
+    Value: 0
+
+
+BUGCHECK_CODE:  7e
+
+BUGCHECK_P1: ffffffff80000003
+
+BUGCHECK_P2: fffff80654c1cf60
+
+BUGCHECK_P3: fffffb8648341a78
+
+BUGCHECK_P4: fffffb86483412b0
+
+FILE_IN_CAB:  051326-8453-01.dmp
+
+DUMP_FILE_ATTRIBUTES: 0x8
+  Kernel Generated Triage Dump
+
+EXCEPTION_RECORD:  fffffb8648341a78 -- (.exr 0xfffffb8648341a78)
+ExceptionAddress: fffff80654c1cf60 (nt!DbgBreakPoint)
+   ExceptionCode: 80000003 (Break instruction exception)
+  ExceptionFlags: 00000000
+NumberParameters: 1
+   Parameter[0]: 0000000000000000
+
+CONTEXT:  fffffb86483412b0 -- (.cxr 0xfffffb86483412b0)
+rax=ffffa58657bef950 rbx=00005a79a8e35898 rcx=fffff80655f49b30
+rdx=ffffa58657befb10 rsi=fffff80242ad5254 rdi=ffffa58657bef950
+rip=fffff80654c1cf60 rsp=fffffb8648341cb8 rbp=fffffb8648342100
+ r8=fffffb8648341d00  r9=ffffa58657befb10 r10=7efefeff72746e68
+r11=fffffb8648341ce0 r12=0000000000000000 r13=0000000000000003
+r14=0000000000000001 r15=ffffa58658ee0dc0
+iopl=0         nv up ei pl nz na pe nc
+cs=0010  ss=0018  ds=002b  es=002b  fs=0053  gs=002b             efl=00240202
+nt!DbgBreakPoint:
+fffff806`54c1cf60 cc              int     3
+Resetting default scope
+
+BLACKBOXBSD: 1 (!blackboxbsd)
+
+
+BLACKBOXNTFS: 1 (!blackboxntfs)
+
+
+BLACKBOXWINLOGON: 1
+
+CUSTOMER_CRASH_COUNT:  1
+
+PROCESS_NAME:  System
+
+ERROR_CODE: (NTSTATUS) 0x80000003 - {EXCEPTION}  Breakpoint  A breakpoint has been reached.
+
+EXCEPTION_CODE_STR:  80000003
+
+EXCEPTION_PARAMETER1:  0000000000000000
+
+EXCEPTION_STR:  0x80000003
+
+STACK_TEXT:  
+fffffb86`48341cb8 fffff806`55eddf57     : 00000000`00000008 ffffa586`57befb10 fffffb86`48341d00 ffffa586`57befb10 : nt!DbgBreakPoint
+fffffb86`48341cc0 fffff806`55ecfaab     : 00005a79`00737973 fffffb86`48342100 fffff802`42ad5254 fffff806`55f480a8 : Wdf01000!FxVerifierDbgBreakPoint+0x4b [minkernel\wdf\framework\shared\inc\private\common\fxverifier.h @ 97] 
+fffffb86`48341d00 fffff802`42ad140c     : fffffb86`48342490 ffffa586`571ca760 00005a79`a8e35898 00000000`00000000 : Wdf01000!imp_WdfObjectDelete+0x1bc0b [minkernel\wdf\framework\shared\object\fxobjectapi.cpp @ 314] 
+fffffb86`48341d50 fffffb86`48342490     : ffffa586`571ca760 00005a79`a8e35898 00000000`00000000 fffff806`55eb3ea0 : vSerious+0x140c
+fffffb86`48341d58 ffffa586`571ca760     : 00005a79`a8e35898 00000000`00000000 fffff806`55eb3ea0 00000000`00000001 : 0xfffffb86`48342490
+fffffb86`48341d60 00005a79`a8e35898     : 00000000`00000000 fffff806`55eb3ea0 00000000`00000001 fffffb86`48341f4c : 0xffffa586`571ca760
+fffffb86`48341d68 00000000`00000000     : fffff806`55eb3ea0 00000000`00000001 fffffb86`48341f4c fffff802`42ad231c : 0x00005a79`a8e35898
+
+
+SYMBOL_NAME:  vSerious+140c
+
+MODULE_NAME: vSerious
+
+IMAGE_NAME:  vSerious.sys
+
+STACK_COMMAND:  .cxr 0xfffffb86483412b0 ; kb
+
+BUCKET_ID_FUNC_OFFSET:  140c
+
+FAILURE_BUCKET_ID:  0x7E_80000003_vSerious!unknown_function
+
+OSPLATFORM_TYPE:  x64
+
+OSNAME:  Windows 10
+
+FAILURE_ID_HASH:  {8829f546-6959-ce4b-4e99-051b92778b31}
+
+Followup:     MachineOwner
+---------
+
