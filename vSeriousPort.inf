@@ -3,8 +3,9 @@
 ;
 ; Sole purpose: tell PnP that any "vSerious\Port" PDO belongs to the Ports
 ; setup class so Device Manager categorizes it correctly. The bus driver
-; (vSerious.sys) owns all I/O via raw-mode PDOs — no function driver,
-; no service, no files to copy.
+; (vSerious.sys) owns all I/O via raw-mode PDOs — no separate function
+; driver. We only re-associate the existing vSerious service with the PDO
+; because PnP/InfVerif require a service link.
 ;
 
 [Version]
@@ -21,28 +22,33 @@ CatalogFile = vSerious.cat
 
 ; Windows 7 x86
 [Standard.NTx86]
-%vSerious.PortDesc% = vSerious_Port_Install, vSerious\Port
+%vSerious.PortDesc% = vSerious_Port_Install.NTx86, vSerious\Port
 
 ; Windows 7 x64
 [Standard.NTamd64]
-%vSerious.PortDesc% = vSerious_Port_Install, vSerious\Port
+%vSerious.PortDesc% = vSerious_Port_Install.NTamd64, vSerious\Port
 
 ; Windows 10 x64 (1709+)
 [Standard.NTamd64.10.0...16299]
-%vSerious.PortDesc% = vSerious_Port_Install, vSerious\Port
+%vSerious.PortDesc% = vSerious_Port_Install.NTamd64, vSerious\Port
 
-[vSerious_Port_Install]
+; --------- x86 install ---------
+[vSerious_Port_Install.NTx86]
 AddReg = vSerious_Port_AddReg
 
+[vSerious_Port_Install.NTx86.Services]
+AddService = vSerious, 2
+
+; --------- amd64 install (Win7 and Win10) ---------
+[vSerious_Port_Install.NTamd64]
+AddReg = vSerious_Port_AddReg
+
+[vSerious_Port_Install.NTamd64.Services]
+AddService = vSerious, 2
+
+; --------- shared AddReg ---------
 [vSerious_Port_AddReg]
 HKR,,FriendlyName,,"%vSerious.PortDesc%"
-
-; Associate the existing vSerious bus-driver service with this PDO. The PDO
-; is raw (WdfPdoInitAssignRawDevice), so no separate function driver is
-; loaded — but PnP/pnputil still require a service association. Flag 2 =
-; SPSVCINST_ASSOCSERVICE: associate, do not (re)install the service.
-[vSerious_Port_Install.NT.Services]
-AddService = vSerious, 2
 
 [Strings]
 ManufacturerName    = "stonarini"
