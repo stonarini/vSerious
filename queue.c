@@ -701,6 +701,7 @@ vSeriousDeviceEvtIoDeviceControl(
 
     case IOCTL_SERIAL_SET_QUEUE_SIZE:
     case IOCTL_SERIAL_SET_DTR:
+    case IOCTL_SERIAL_CLR_DTR:
     case IOCTL_SERIAL_SET_RTS:
     case IOCTL_SERIAL_CLR_RTS:
     case IOCTL_SERIAL_SET_XON:
@@ -710,13 +711,96 @@ vSeriousDeviceEvtIoDeviceControl(
     case IOCTL_SERIAL_GET_HANDFLOW:
     case IOCTL_SERIAL_SET_HANDFLOW:
     case IOCTL_SERIAL_RESET_DEVICE:
+    case IOCTL_SERIAL_PURGE:
+    case IOCTL_SERIAL_SET_BREAK_ON:
+    case IOCTL_SERIAL_SET_BREAK_OFF:
+    case IOCTL_SERIAL_CLEAR_STATS:
         //
-        // NOTE: The application expects STATUS_SUCCESS for these IOCTLs.
+        // .NET SerialPort.Open() fires several of these (CLR_DTR, PURGE,
+        // HANDFLOW); returning STATUS_SUCCESS as a stub is enough for it to
+        // proceed past the configure step.
         //
         status = STATUS_SUCCESS;
         break;
 
+    case IOCTL_SERIAL_GET_COMMSTATUS:
+    {
+        // SerialPort.Read/BytesToRead consults this. Report no errors, no
+        // hold reasons, no data pending in either queue. Caller's buffer is
+        // sized to sizeof(SERIAL_STATUS).
+        PVOID buf = NULL;
+        size_t bufLen = 0;
+        status = WdfRequestRetrieveOutputBuffer(Request,
+            sizeof(SERIAL_STATUS), &buf, &bufLen);
+        if (NT_SUCCESS(status)) {
+            RtlZeroMemory(buf, sizeof(SERIAL_STATUS));
+            WdfRequestSetInformation(Request, sizeof(SERIAL_STATUS));
+        }
+        break;
+    }
+
+    case IOCTL_SERIAL_GET_MODEMSTATUS:
+    case IOCTL_SERIAL_GET_DTRRTS:
+    case IOCTL_SERIAL_GET_COMMCONFIG:
+    {
+        // Each returns a ULONG; zero is a fine default ("no modem signals,
+        // no DTR/RTS asserted").
+        PVOID buf = NULL;
+        size_t bufLen = 0;
+        status = WdfRequestRetrieveOutputBuffer(Request,
+            sizeof(ULONG), &buf, &bufLen);
+        if (NT_SUCCESS(status)) {
+            RtlZeroMemory(buf, sizeof(ULONG));
+            WdfRequestSetInformation(Request, sizeof(ULONG));
+        }
+        break;
+    }
+
+    case IOCTL_SERIAL_GET_PROPERTIES:
+    {
+        // SerialPort.Open issues this to learn the port's capabilities. We
+        // advertise generous buffers and "any" settings — the call won't
+        // open without it on some Windows builds.
+        PVOID buf = NULL;
+        size_t bufLen = 0;
+        status = WdfRequestRetrieveOutputBuffer(Request,
+            sizeof(SERIAL_COMMPROP), &buf, &bufLen);
+        if (NT_SUCCESS(status)) {
+            PSERIAL_COMMPROP p = (PSERIAL_COMMPROP)buf;
+            RtlZeroMemory(p, sizeof(SERIAL_COMMPROP));
+            p->PacketLength       = sizeof(SERIAL_COMMPROP);
+            p->PacketVersion      = 2;
+            p->ServiceMask        = SERIAL_SP_SERIALCOMM;
+            p->MaxTxQueue         = 4096;
+            p->MaxRxQueue         = 4096;
+            p->MaxBaud            = SERIAL_BAUD_USER;
+            p->ProvSubType        = SERIAL_SP_RS232;
+            p->ProvCapabilities   = SERIAL_PCF_DTRDSR | SERIAL_PCF_RTSCTS
+                                  | SERIAL_PCF_CD     | SERIAL_PCF_PARITY_CHECK
+                                  | SERIAL_PCF_XONXOFF| SERIAL_PCF_TOTALTIMEOUTS
+                                  | SERIAL_PCF_INTTIMEOUTS;
+            p->SettableParams     = SERIAL_SP_BAUD | SERIAL_SP_DATABITS
+                                  | SERIAL_SP_PARITY | SERIAL_SP_STOPBITS
+                                  | SERIAL_SP_HANDSHAKING;
+            p->SettableBaud       = SERIAL_BAUD_USER;
+            p->SettableData       = SERIAL_DATABITS_5 | SERIAL_DATABITS_6
+                                  | SERIAL_DATABITS_7 | SERIAL_DATABITS_8;
+            p->SettableStopParity = SERIAL_STOPBITS_10 | SERIAL_STOPBITS_15
+                                  | SERIAL_STOPBITS_20
+                                  | SERIAL_PARITY_NONE | SERIAL_PARITY_ODD
+                                  | SERIAL_PARITY_EVEN | SERIAL_PARITY_MARK
+                                  | SERIAL_PARITY_SPACE;
+            p->CurrentTxQueue     = 0;
+            p->CurrentRxQueue     = 0;
+            WdfRequestSetInformation(Request, sizeof(SERIAL_COMMPROP));
+        }
+        break;
+    }
+
     default:
+        Trace(TRACE_LEVEL_ERROR,
+            "vSerious: unhandled IOCTL 0x%x (returning INVALID_PARAMETER)",
+            IoControlCode);
         status = STATUS_INVALID_PARAMETER;
         break;
     }
