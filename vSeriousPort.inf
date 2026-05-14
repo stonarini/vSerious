@@ -72,5 +72,9 @@ HKR,,FriendlyName,,"%vSerious.PortDesc%"
 [Strings]
 ManufacturerName    = "stonarini"
 DiskName            = "vSerious Installation Disk"
-vSerious.PortDesc   = "vSerious Virtual COM Port"
+; FriendlyName is what Win32_PnPEntity.Caption returns. Windows appends
+; " (COMx)" automatically once PortName is set on a Ports-class device,
+; so the final display is "USB Serial Port (COMx)" — what apps that key
+; off FTDI VCP naming (Bosch Cristina, etc.) expect.
+vSerious.PortDesc   = "USB Serial Port"
 vSerious.SVCDESC    = "vSerious Virtual COM Port Controller"
