@@ -1,5 +1,6 @@
 #include "internal.h"
 #include <ntstrsafe.h>
+#include <devpkey.h>
 
 // ObQueryNameString lives in ntifs.h, which conflicts with KMDF's header
 // chain. Forward-declare it here so we can read the WDM device-object name
@@ -249,6 +250,28 @@ vSeriousPdoEvtSelfManagedIoInit(
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR, "ERROR: WdfRegistryAssignUnicodeString(PortName) failed 0x%x", status);
         return status;
+    }
+
+    // Compose FriendlyName "<desc> (COMx)" — Win32_PnPEntity.Caption is just
+    // the FriendlyName, and apps like Bosch Cristina filter ports with
+    // WHERE Caption like '%(COMx)%'. INF-set FriendlyName has no (COMx) suffix.
+    // CompatMode poses as the standard FTDI VCP name so the rest of Cristina's
+    // VID/PID heuristic lines up.
+    {
+        DECLARE_UNICODE_STRING_SIZE(friendlyName, 96);
+        PCWSTR fmt = g_CompatMode
+            ? L"USB Serial Port (%ws)"
+            : L"vSerious Virtual COM Port (%ws)";
+        if (NT_SUCCESS(RtlUnicodeStringPrintf(&friendlyName, fmt, deviceContext->ComName))) {
+            (VOID)IoSetDevicePropertyData(
+                WdfDeviceWdmGetPhysicalDevice(Device),
+                &DEVPKEY_Device_FriendlyName,
+                LOCALE_NEUTRAL,
+                0,
+                DEVPROP_TYPE_STRING,
+                friendlyName.Length + sizeof(WCHAR),
+                friendlyName.Buffer);
+        }
     }
 
     return STATUS_SUCCESS;
