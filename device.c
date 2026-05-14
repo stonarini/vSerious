@@ -74,8 +74,11 @@ vSeriousEvtChildListCreateDevice(
         // FTDI-style ID. Note the '+' separators are what Cristina searches for
         // (Cristina's WMI scan uses IndexOf("VID_0403+PID_6015")); the real FTDI
         // bus uses '&', but for our purposes the literal '+' is what we want.
+        // Keep the "vSerious\" enumerator prefix — WdfPdoInitAssignDeviceID /
+        // AddHardwareID require <enumerator>\<id> and the existing INF compat-ID
+        // match (vSerious\Port) is what binds vSeriousPort.inf either way.
         status = RtlUnicodeStringPrintf(&hardwareId,
-            L"VID_0403+PID_6015+CR%06lu", comNum);
+            L"vSerious\\VID_0403+PID_6015+CR%06lu", comNum);
         if (!NT_SUCCESS(status)) return status;
     }
     else {
