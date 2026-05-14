@@ -11,26 +11,55 @@ ReadCompatMode(_In_ PUNICODE_STRING ServiceKeyPath)
     UNICODE_STRING valueName;
     WCHAR pathBuf[256];
     UNICODE_STRING fullPath;
-    UCHAR infoBuf[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG)];
+    DECLSPEC_ALIGN(8) UCHAR infoBuf[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG)];
     PKEY_VALUE_PARTIAL_INFORMATION info = (PKEY_VALUE_PARTIAL_INFORMATION)infoBuf;
     ULONG retLen = 0;
+
+    Trace(TRACE_LEVEL_ERROR,
+        "vSerious: ReadCompatMode entry, ServiceKeyPath=%wZ", ServiceKeyPath);
 
     fullPath.Buffer = pathBuf;
     fullPath.Length = 0;
     fullPath.MaximumLength = sizeof(pathBuf);
-    if (!NT_SUCCESS(RtlAppendUnicodeStringToString(&fullPath, ServiceKeyPath))) return;
-    if (!NT_SUCCESS(RtlAppendUnicodeToString(&fullPath, L"\\Parameters"))) return;
+    status = RtlAppendUnicodeStringToString(&fullPath, ServiceKeyPath);
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "vSerious: append ServiceKeyPath failed 0x%x", status);
+        return;
+    }
+    status = RtlAppendUnicodeToString(&fullPath, L"\\Parameters");
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "vSerious: append \\Parameters failed 0x%x", status);
+        return;
+    }
+
+    Trace(TRACE_LEVEL_ERROR, "vSerious: opening %wZ", &fullPath);
 
     InitializeObjectAttributes(&oa, &fullPath,
         OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    status = ZwOpenKey(&key, KEY_READ, &oa);
-    if (!NT_SUCCESS(status)) return;
+    status = ZwOpenKey(&key, KEY_QUERY_VALUE, &oa);
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "vSerious: ZwOpenKey(%wZ) failed 0x%x", &fullPath, status);
+        return;
+    }
 
     RtlInitUnicodeString(&valueName, L"CompatMode");
     status = ZwQueryValueKey(key, &valueName, KeyValuePartialInformation,
         info, sizeof(infoBuf), &retLen);
-    if (NT_SUCCESS(status) && info->Type == REG_DWORD && info->DataLength == sizeof(ULONG)) {
-        g_CompatMode = (*(PULONG)info->Data) != 0;
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "vSerious: ZwQueryValueKey(CompatMode) failed 0x%x retLen=%u", status, retLen);
+    }
+    else if (info->Type != REG_DWORD) {
+        Trace(TRACE_LEVEL_ERROR, "vSerious: CompatMode wrong type %u (expected REG_DWORD=%u)",
+            info->Type, REG_DWORD);
+    }
+    else if (info->DataLength != sizeof(ULONG)) {
+        Trace(TRACE_LEVEL_ERROR, "vSerious: CompatMode wrong size %u", info->DataLength);
+    }
+    else {
+        ULONG value = *(PULONG)info->Data;
+        g_CompatMode = (value != 0);
+        Trace(TRACE_LEVEL_ERROR, "vSerious: CompatMode value=%u -> g_CompatMode=%u",
+            value, g_CompatMode);
     }
     ZwClose(key);
 }
