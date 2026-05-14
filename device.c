@@ -61,11 +61,29 @@ vSeriousEvtChildListCreateDevice(
         return status;
     }
 
-    // Hardware ID: vSerious\COM5
-    status = RtlAppendUnicodeToString(&hardwareId, L"vSerious\\");
-    if (!NT_SUCCESS(status)) return status;
-    status = RtlAppendUnicodeStringToString(&hardwareId, &comNameString);
-    if (!NT_SUCCESS(status)) return status;
+    // DeviceID format depends on CompatMode. Normal: vSerious\COMx. CompatMode:
+    // mimics FTDI FT231X so Win32_PnPEntity.DeviceID contains VID_0403+PID_6015
+    // and a CRxxxxxx serial — what Bosch Cristina (and apps like it) look for.
+    if (g_CompatMode) {
+        ULONG comNum = 0;
+        for (size_t i = 3; i < ARRAYSIZE(((PDEVICE_CONTEXT)0)->ComName) && comName[i] != L'\0'; i++) {
+            if (comName[i] >= L'0' && comName[i] <= L'9') {
+                comNum = comNum * 10 + (comName[i] - L'0');
+            }
+        }
+        // FTDI-style ID. Note the '+' separators are what Cristina searches for
+        // (Cristina's WMI scan uses IndexOf("VID_0403+PID_6015")); the real FTDI
+        // bus uses '&', but for our purposes the literal '+' is what we want.
+        status = RtlUnicodeStringPrintf(&hardwareId,
+            L"VID_0403+PID_6015+CR%06lu", comNum);
+        if (!NT_SUCCESS(status)) return status;
+    }
+    else {
+        status = RtlAppendUnicodeToString(&hardwareId, L"vSerious\\");
+        if (!NT_SUCCESS(status)) return status;
+        status = RtlAppendUnicodeStringToString(&hardwareId, &comNameString);
+        if (!NT_SUCCESS(status)) return status;
+    }
 
     status = WdfPdoInitAssignDeviceID(ChildInit, &hardwareId);
     if (!NT_SUCCESS(status)) return status;
