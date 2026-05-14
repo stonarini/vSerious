@@ -374,13 +374,24 @@ vSeriousControllerEvtIoDeviceControl(
         }
 
         if (activeFlag) {
+            // AddOrUpdateAsPresent is idempotent — if the description already
+            // exists in the child list (from a prior Activate that we never
+            // tore down) KMDF returns STATUS_OBJECT_NAME_EXISTS, which is
+            // NT_SUCCESS; the existing PDO stays put. New activation requires
+            // no PDO creation, eliminating the recreate-collides-with-ghost
+            // failure mode.
             status = WdfChildListAddOrUpdateChildDescriptionAsPresent(
                 list, &desc.Header, NULL);
-            // STATUS_OBJECT_NAME_EXISTS is NT_SUCCESS — already-present is fine.
         }
         else {
-            status = WdfChildListUpdateChildDescriptionAsMissing(
-                list, &desc.Header);
+            // Deactivate is a flag flip only — we intentionally do NOT mark
+            // the child missing. Tearing the PDO down and rebuilding it on
+            // the next Activate races PnP cleanup and produces symlink /
+            // SERIALCOMM / devnode collisions; keeping the PDO alive makes
+            // re-Activate trivially correct. Real removal: devcon remove
+            // Root\vSerious (or change the COM name, which triggers a
+            // synchronous old-child cleanup in SET_COM_NAME).
+            status = STATUS_SUCCESS;
         }
 
         if (NT_SUCCESS(status)) {
@@ -451,6 +462,24 @@ vSeriousControllerEvtIoDeviceControl(
         }
 
         controllerContext->SymbolicLinkName = link;
+
+        // If a PDO with a different ComName is still parked in the child list
+        // from a prior session (we no longer tear PDOs down on Deactivate),
+        // mark it missing now so PnP retires it before the new name's PDO is
+        // added on the next Activate.
+        if (controllerContext->ComName[0] != L'\0' &&
+            wcscmp(controllerContext->ComName, rawBuffer) != 0)
+        {
+            WDFCHILDLIST list = WdfFdoGetDefaultChildList(controllerContext->Controller);
+            VSERIOUS_PDO_IDENTIFICATION_DESCRIPTION oldDesc;
+            RtlZeroMemory(&oldDesc, sizeof(oldDesc));
+            WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(&oldDesc.Header,
+                sizeof(VSERIOUS_PDO_IDENTIFICATION_DESCRIPTION));
+            (VOID)RtlStringCchCopyW(oldDesc.ComName,
+                ARRAYSIZE(oldDesc.ComName),
+                controllerContext->ComName);
+            (VOID)WdfChildListUpdateChildDescriptionAsMissing(list, &oldDesc.Header);
+        }
 
         status = RtlStringCchCopyW(controllerContext->ComName,
             ARRAYSIZE(controllerContext->ComName),
