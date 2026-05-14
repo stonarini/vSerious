@@ -176,6 +176,15 @@ vSeriousEvtChildListCreateDevice(
         status = RtlAppendUnicodeStringToString(&symbolicLink, &comNameString);
         if (!NT_SUCCESS(status)) goto Fail;
         RtlInitUnicodeString(&pdoNameString, deviceContext->PdoName);
+
+        // Best-effort delete of a stale \DosDevices\COMx from a previous PDO
+        // that wasn't fully reaped before this Activate (Windows leaves a ghost
+        // devnode behind on every deactivate; if the old EvtCleanup hadn't run
+        // yet, IoCreateSymbolicLink below would trip STATUS_OBJECT_NAME_COLLISION
+        // and block re-activation). STATUS_OBJECT_NAME_NOT_FOUND is the common
+        // case here and is fine to ignore.
+        (VOID)IoDeleteSymbolicLink(&symbolicLink);
+
         status = IoCreateSymbolicLink(&symbolicLink, &pdoNameString);
         if (!NT_SUCCESS(status)) {
             Trace(TRACE_LEVEL_ERROR, "ERROR: IoCreateSymbolicLink failed 0x%x", status);
