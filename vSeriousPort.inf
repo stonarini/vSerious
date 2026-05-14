@@ -14,7 +14,7 @@ Signature   = "$WINDOWS NT$"
 Class       = Ports
 ClassGuid   = {4D36E978-E325-11CE-BFC1-08002BE10318}
 Provider    = %ManufacturerName%
-DriverVer   = 01/05/2025,1.0.0.1
+DriverVer   = 05/15/2026,1.0.0.2
 PnpLockdown = 1
 CatalogFile = vSerious.cat
 
