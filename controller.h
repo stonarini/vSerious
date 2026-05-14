@@ -31,10 +31,17 @@ typedef struct _CONTROLLER_CONTEXT
 
     WCHAR ComName[COM_NAME_MAX_CCH];
 
-    // Set by EvtChildListCreateDevice on the active child's queue context so
+    // Set by QueueCreateDevice on the active child's queue context so
     // controller-side IOCTL_VSERIOUS_READ / IOCTL_VSERIOUS_WRITE can route to
     // the child PDO's per-direction ring buffers without iterating the list.
     struct _QUEUE_CONTEXT* ActiveChildQueue;
+
+    // Manual queue for parked IOCTL_VSERIOUS_READ requests. Lives on the
+    // controller so that parking is same-device (no cross-device forwarding,
+    // which has bitten us with a SYSTEM_SERVICE_EXCEPTION). The child's
+    // EvtIoWrite drains it inline (retrieve + complete) when new PC→HW bytes
+    // arrive — no forwarding required.
+    WDFQUEUE SdkReadQueue;
 
 } CONTROLLER_CONTEXT, * PCONTROLLER_CONTEXT;
 

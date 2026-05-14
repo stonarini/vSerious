@@ -50,15 +50,6 @@ QueueCreateDevice(
     }
     queueContext->ComReadQueue = queue;
 
-    // sCristina's pending reads via IOCTL_VSERIOUS_READ land here.
-    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
-    status = WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
-    if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR, "Error: SdkReadQueue create failed 0x%x", status);
-        return status;
-    }
-    queueContext->SdkReadQueue = queue;
-
     // Wait-on-mask pending queue (IOCTL_SERIAL_WAIT_ON_MASK).
     WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
     status = WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
@@ -125,9 +116,17 @@ QueueCreateController(
     queueContext->Queue = queue;
     queueContext->ControllerContext = ControllerContext;
 
-    // The controller queue itself doesn't move bytes — IOCTL_VSERIOUS_READ
-    // and IOCTL_VSERIOUS_WRITE forward to the child PDO's QUEUE_CONTEXT
-    // (ActiveChildQueue) for the per-direction ring buffers and read queues.
+    // Parking queue for sCristina's pending IOCTL_VSERIOUS_READ requests.
+    // Same device as where those IOCTLs land (the controller), so forwarding
+    // into it is intra-device. Child EvtIoWrite drains it via inline
+    // retrieve + complete, no cross-device forwarding.
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
+    status = WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "Error: SdkReadQueue create failed 0x%x", status);
+        return status;
+    }
+    ControllerContext->SdkReadQueue = queue;
 
     return status;
 }
@@ -505,9 +504,10 @@ vSeriousControllerEvtIoDeviceControl(
             break;
         }
 
-        // No data — park in the child's SdkReadQueue. EvtIoWrite (COM port)
-        // will reanimate us when Cristina writes.
-        status = WdfRequestForwardToIoQueue(Request, childQc->SdkReadQueue);
+        // No data — park in the controller's own SdkReadQueue (same device,
+        // intra-device forward). Child EvtIoWrite retrieves + completes
+        // inline when Cristina writes.
+        status = WdfRequestForwardToIoQueue(Request, controllerContext->SdkReadQueue);
         if (NT_SUCCESS(status)) {
             return;   // pending; do NOT complete here
         }
@@ -923,39 +923,48 @@ vSeriousDeviceEvtIoWrite(
 
     WdfRequestCompleteWithInformation(Request, status, Length);
 
-    // Kick any sCristina reads (controller IOCTL_VSERIOUS_READ) waiting on
-    // PC→HW data. The dispatch sends them back to the controller's parallel
-    // queue where they re-enter vSeriousControllerEvtIoDeviceControl and now
-    // find data sitting in the buffer.
-    RingBufferGetAvailableData(&queueContext->RingBufferPcToHw, &availableData);
-    if (availableData == 0) {
-        return;
-    }
+    // Wake any sCristina reads parked in the controller's SdkReadQueue.
+    // Retrieve + complete inline so we never forward across devices.
+    {
+        WDFDEVICE parent = WdfPdoGetParent(queueContext->DeviceContext->Device);
+        PCONTROLLER_CONTEXT cc = parent ? GetControllerContext(parent) : NULL;
+        WDFQUEUE sdkReadQueue = cc ? cc->SdkReadQueue : NULL;
+        if (sdkReadQueue == NULL) return;
 
-    for (; ; ) {
-        WDFQUEUE controllerQueue;
-        status = WdfIoQueueRetrieveNextRequest(queueContext->SdkReadQueue, &savedRequest);
-        if (!NT_SUCCESS(status)) break;
+        RingBufferGetAvailableData(&queueContext->RingBufferPcToHw, &availableData);
+        while (availableData > 0) {
+            WDFMEMORY readMem;
+            size_t readLen = 0;
+            PUCHAR readBuf;
+            size_t bytesCopied = 0;
 
-        // The parked SDK reads need to go back to the controller's default
-        // queue, not the COM port's. We recorded that queue when we created
-        // the controller queue — pull it via the controller context.
-        if (queueContext->DeviceContext) {
-            WDFDEVICE parent = WdfPdoGetParent(queueContext->DeviceContext->Device);
-            PCONTROLLER_CONTEXT cc = parent ? GetControllerContext(parent) : NULL;
-            controllerQueue = (cc != NULL) ? WdfDeviceGetDefaultQueue(cc->Controller) : NULL;
-        } else {
-            controllerQueue = NULL;
-        }
-        if (controllerQueue == NULL) {
-            WdfRequestComplete(savedRequest, STATUS_DEVICE_NOT_READY);
-            continue;
-        }
+            status = WdfIoQueueRetrieveNextRequest(sdkReadQueue, &savedRequest);
+            if (!NT_SUCCESS(status)) break;
 
-        status = WdfRequestForwardToIoQueue(savedRequest, controllerQueue);
-        if (!NT_SUCCESS(status)) {
-            Trace(TRACE_LEVEL_ERROR, "Error: forward SDK read failed 0x%x", status);
-            WdfRequestComplete(savedRequest, status);
+            status = WdfRequestRetrieveOutputMemory(savedRequest, &readMem);
+            if (!NT_SUCCESS(status)) {
+                WdfRequestComplete(savedRequest, status);
+                RingBufferGetAvailableData(&queueContext->RingBufferPcToHw, &availableData);
+                continue;
+            }
+            readBuf = (PUCHAR)WdfMemoryGetBuffer(readMem, &readLen);
+
+            status = RingBufferRead(&queueContext->RingBufferPcToHw,
+                readBuf, readLen, &bytesCopied);
+            if (!NT_SUCCESS(status)) {
+                WdfRequestComplete(savedRequest, status);
+                break;
+            }
+            if (bytesCopied > 0) {
+                WdfRequestCompleteWithInformation(savedRequest, STATUS_SUCCESS, bytesCopied);
+            }
+            else {
+                // Buffer drained between the get-available and the read.
+                // Re-park on the controller's queue (same-device forward).
+                (VOID)WdfRequestForwardToIoQueue(savedRequest, sdkReadQueue);
+                break;
+            }
+            RingBufferGetAvailableData(&queueContext->RingBufferPcToHw, &availableData);
         }
     }
 }

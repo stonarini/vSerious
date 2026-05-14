@@ -41,8 +41,6 @@ typedef struct _QUEUE_CONTEXT
 
     WDFQUEUE        ComReadQueue;       // Pending Cristina reads (\\.\COMx)
 
-    WDFQUEUE        SdkReadQueue;       // Pending sCristina reads (controller IOCTL)
-
     WDFQUEUE        WaitMaskQueue;      // Pending ioctl wait-on-mask
 
     PDEVICE_CONTEXT DeviceContext;
