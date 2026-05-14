@@ -10,12 +10,6 @@
 DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_DRIVER_DEVICE_ADD vSeriousEvtDeviceAdd;
 
-// Set at DriverEntry from HKLM\SYSTEM\CCS\Services\vSerious\Parameters\CompatMode.
-// When TRUE, child PDOs advertise as FTDI FT231X (VID_0403+PID_6015+CRxxxxxx) so
-// third-party apps that key off Win32_PnPEntity.DeviceID (Bosch Cristina, etc.)
-// can discover the virtual port without binary-patching.
-extern BOOLEAN g_CompatMode;
-
 typedef struct _CONTROLLER_CONTEXT CONTROLLER_CONTEXT, * PCONTROLLER_CONTEXT;
 
 #include "device.h"

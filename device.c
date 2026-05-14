@@ -62,30 +62,22 @@ vSeriousEvtChildListCreateDevice(
         return status;
     }
 
-    // DeviceID format depends on CompatMode. Normal: vSerious\COMx. CompatMode:
-    // mimics FTDI FT231X so Win32_PnPEntity.DeviceID contains VID_0403+PID_6015
-    // and a CRxxxxxx serial — what Bosch Cristina (and apps like it) look for.
-    if (g_CompatMode) {
+    // DeviceID always mimics FTDI FT231X so Win32_PnPEntity.DeviceID contains
+    // VID_0403+PID_6015 and a CRxxxxxx serial — what Bosch Cristina (and apps
+    // like it) look for. The "vSerious\" enumerator prefix stays because
+    // WdfPdoInitAssignDeviceID / AddHardwareID require <enumerator>\<id> and
+    // INF binding falls back to the vSerious\Port compat ID either way. Note
+    // the '+' separators are literal: Cristina's WMI scan uses
+    // IndexOf("VID_0403+PID_6015") (real FTDI USB uses '&', irrelevant here).
+    {
         ULONG comNum = 0;
         for (size_t i = 3; i < ARRAYSIZE(((PDEVICE_CONTEXT)0)->ComName) && comName[i] != L'\0'; i++) {
             if (comName[i] >= L'0' && comName[i] <= L'9') {
                 comNum = comNum * 10 + (comName[i] - L'0');
             }
         }
-        // FTDI-style ID. Note the '+' separators are what Cristina searches for
-        // (Cristina's WMI scan uses IndexOf("VID_0403+PID_6015")); the real FTDI
-        // bus uses '&', but for our purposes the literal '+' is what we want.
-        // Keep the "vSerious\" enumerator prefix — WdfPdoInitAssignDeviceID /
-        // AddHardwareID require <enumerator>\<id> and the existing INF compat-ID
-        // match (vSerious\Port) is what binds vSeriousPort.inf either way.
         status = RtlUnicodeStringPrintf(&hardwareId,
             L"vSerious\\VID_0403+PID_6015+CR%06lu", comNum);
-        if (!NT_SUCCESS(status)) return status;
-    }
-    else {
-        status = RtlAppendUnicodeToString(&hardwareId, L"vSerious\\");
-        if (!NT_SUCCESS(status)) return status;
-        status = RtlAppendUnicodeStringToString(&hardwareId, &comNameString);
         if (!NT_SUCCESS(status)) return status;
     }
 
@@ -255,17 +247,13 @@ vSeriousPdoEvtSelfManagedIoInit(
         return status;
     }
 
-    // Compose FriendlyName "<desc> (COMx)" — Win32_PnPEntity.Caption is just
-    // the FriendlyName, and apps like Bosch Cristina filter ports with
-    // WHERE Caption like '%(COMx)%'. INF-set FriendlyName has no (COMx) suffix.
-    // CompatMode poses as the standard FTDI VCP name so the rest of Cristina's
-    // VID/PID heuristic lines up.
+    // Compose FriendlyName "USB Serial Port (COMx)" — Win32_PnPEntity.Caption
+    // is just the FriendlyName, and apps like Bosch Cristina filter ports with
+    // WHERE Caption like '%(COMx)%' (and expect the standard FTDI VCP name).
     {
         DECLARE_UNICODE_STRING_SIZE(friendlyName, 96);
-        PCWSTR fmt = g_CompatMode
-            ? L"USB Serial Port (%ws)"
-            : L"vSerious Virtual COM Port (%ws)";
-        if (NT_SUCCESS(RtlUnicodeStringPrintf(&friendlyName, fmt, deviceContext->ComName))) {
+        if (NT_SUCCESS(RtlUnicodeStringPrintf(&friendlyName,
+                L"USB Serial Port (%ws)", deviceContext->ComName))) {
             (VOID)IoSetDevicePropertyData(
                 WdfDeviceWdmGetPhysicalDevice(Device),
                 &DEVPKEY_Device_FriendlyName,
