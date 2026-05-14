@@ -4,8 +4,9 @@
 ; Sole purpose: tell PnP that any "vSerious\Port" PDO belongs to the Ports
 ; setup class so Device Manager categorizes it correctly. The bus driver
 ; (vSerious.sys) owns all I/O via raw-mode PDOs — no separate function
-; driver. We only re-associate the existing vSerious service with the PDO
-; because PnP/InfVerif require a service link.
+; driver. We re-declare the vSerious service install (with NOCLOBBER flags)
+; so InfVerif's Universal driver rules accept the package; vSerious.inf is
+; what actually installs/owns the service.
 ;
 
 [Version]
@@ -15,11 +16,13 @@ ClassGuid   = {4D36E978-E325-11CE-BFC1-08002BE10318}
 Provider    = %ManufacturerName%
 DriverVer   = 01/05/2025,1.0.0.1
 PnpLockdown = 1
-; Reuse the parent driver package's signed catalog. pnputil requires *a*
-; cat reference; with test-signing enabled the dev machine accepts this
-; even though vSerious.cat's hash list doesn't strictly cover this INF.
-; Production deployments would sign a separate vSeriousPort.cat.
 CatalogFile = vSerious.cat
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+vSerious.sys = 1,,
 
 [Manufacturer]
 %ManufacturerName% = Standard,NTx86,NTamd64,NTamd64.10.0...16299
@@ -41,14 +44,26 @@ CatalogFile = vSerious.cat
 AddReg = vSerious_Port_AddReg
 
 [vSerious_Port_Install.NTx86.Services]
-AddService = vSerious, 2
+AddService = vSerious, 0x000001FA, vSerious_Service_Inst
 
 ; --------- amd64 install (Win7 and Win10) ---------
 [vSerious_Port_Install.NTamd64]
 AddReg = vSerious_Port_AddReg
 
 [vSerious_Port_Install.NTamd64.Services]
-AddService = vSerious, 2
+AddService = vSerious, 0x000001FA, vSerious_Service_Inst
+
+; --------- shared service install ---------
+; Flags 0x1FA = ASSOCSERVICE | NOCLOBBER_{DISPLAYNAME, STARTTYPE, ERRORCONTROL,
+;               LOADORDERGROUP, DEPENDENCIES, DESCRIPTION}
+; Section must be valid for InfVerif but every settable field is NOCLOBBER'd
+; so vSerious.inf's install of this same service wins.
+[vSerious_Service_Inst]
+DisplayName    = %vSerious.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\vSerious.sys
 
 ; --------- shared AddReg ---------
 [vSerious_Port_AddReg]
@@ -56,4 +71,6 @@ HKR,,FriendlyName,,"%vSerious.PortDesc%"
 
 [Strings]
 ManufacturerName    = "stonarini"
+DiskName            = "vSerious Installation Disk"
 vSerious.PortDesc   = "vSerious Virtual COM Port"
+vSerious.SVCDESC    = "vSerious Virtual COM Port Controller"
