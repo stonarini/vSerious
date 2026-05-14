@@ -22,6 +22,9 @@
     <Inf Include="vSerious.inf">
       <Filter>Driver Files</Filter>
     </Inf>
+    <Inf Include="vSeriousPort.inf">
+      <Filter>Driver Files</Filter>
+    </Inf>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="device.c">
