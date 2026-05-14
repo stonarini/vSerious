@@ -736,8 +736,6 @@ vSeriousDeviceEvtIoDeviceControl(
     case IOCTL_SERIAL_SET_XON:
     case IOCTL_SERIAL_SET_XOFF:
     case IOCTL_SERIAL_SET_CHARS:
-    case IOCTL_SERIAL_GET_CHARS:
-    case IOCTL_SERIAL_GET_HANDFLOW:
     case IOCTL_SERIAL_SET_HANDFLOW:
     case IOCTL_SERIAL_RESET_DEVICE:
     case IOCTL_SERIAL_PURGE:
@@ -751,6 +749,37 @@ vSeriousDeviceEvtIoDeviceControl(
         //
         status = STATUS_SUCCESS;
         break;
+
+    case IOCTL_SERIAL_GET_CHARS:
+    {
+        // SerialPort.Open's GetCommState reads this — if the buffer isn't
+        // actually written to .NET interprets the random stack bytes as the
+        // current DCB and BuildDcb can throw. Zero == no special chars set.
+        PVOID buf = NULL;
+        size_t bufLen = 0;
+        status = WdfRequestRetrieveOutputBuffer(Request,
+            sizeof(SERIAL_CHARS), &buf, &bufLen);
+        if (NT_SUCCESS(status)) {
+            RtlZeroMemory(buf, sizeof(SERIAL_CHARS));
+            WdfRequestSetInformation(Request, sizeof(SERIAL_CHARS));
+        }
+        break;
+    }
+
+    case IOCTL_SERIAL_GET_HANDFLOW:
+    {
+        // Same story — zero out so .NET reads back "no flow control", which
+        // matches what set_Handshake(0) configured anyway.
+        PVOID buf = NULL;
+        size_t bufLen = 0;
+        status = WdfRequestRetrieveOutputBuffer(Request,
+            sizeof(SERIAL_HANDFLOW), &buf, &bufLen);
+        if (NT_SUCCESS(status)) {
+            RtlZeroMemory(buf, sizeof(SERIAL_HANDFLOW));
+            WdfRequestSetInformation(Request, sizeof(SERIAL_HANDFLOW));
+        }
+        break;
+    }
 
     case IOCTL_SERIAL_GET_COMMSTATUS:
     {
