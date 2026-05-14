@@ -6,8 +6,18 @@
 #define IOCTL_VSERIOUS_GET_ACTIVE CTL_CODE(FILE_DEVICE_SERIAL_PORT, 0x801, METHOD_BUFFERED, FILE_READ_DATA)
 #define IOCTL_VSERIOUS_SET_COM_NAME CTL_CODE(FILE_DEVICE_SERIAL_PORT, 0x802, METHOD_BUFFERED, FILE_WRITE_DATA)
 #define IOCTL_VSERIOUS_GET_COM_NAME CTL_CODE(FILE_DEVICE_SERIAL_PORT, 0x803, METHOD_BUFFERED, FILE_READ_DATA)
+// SDK-side data path. Cristina opens \\.\COMx and uses ReadFile/WriteFile;
+// sCristina opens \\.\vSerious and uses these IOCTLs. Buffers are separate
+// per-direction in the child PDO's QUEUE_CONTEXT, so writes never echo into
+// their own reads and the two endpoints don't race.
+#define IOCTL_VSERIOUS_READ  CTL_CODE(FILE_DEVICE_SERIAL_PORT, 0x804, METHOD_BUFFERED, FILE_READ_DATA)
+#define IOCTL_VSERIOUS_WRITE CTL_CODE(FILE_DEVICE_SERIAL_PORT, 0x805, METHOD_BUFFERED, FILE_WRITE_DATA)
 
 #define COM_NAME_MAX_CCH 16
+
+// Forward-declare to avoid pulling queue.h here (queue.h pulls device.h
+// which pulls this).
+struct _QUEUE_CONTEXT;
 
 typedef struct _CONTROLLER_CONTEXT
 {
@@ -20,6 +30,11 @@ typedef struct _CONTROLLER_CONTEXT
     WCHAR SymbolicLinkBuffer[64];
 
     WCHAR ComName[COM_NAME_MAX_CCH];
+
+    // Set by EvtChildListCreateDevice on the active child's queue context so
+    // controller-side IOCTL_VSERIOUS_READ / IOCTL_VSERIOUS_WRITE can route to
+    // the child PDO's per-direction ring buffers without iterating the list.
+    struct _QUEUE_CONTEXT* ActiveChildQueue;
 
 } CONTROLLER_CONTEXT, * PCONTROLLER_CONTEXT;
 

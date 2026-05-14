@@ -41,55 +41,48 @@ QueueCreateDevice(
     queueContext->Queue = queue;
     queueContext->DeviceContext = DeviceContext;
 
-    //
-    // Create a manual queue to hold pending read requests. By keeping
-    // them in the queue, framework takes care of cancelling them if the app
-    // exits
-    //
-
-    WDF_IO_QUEUE_CONFIG_INIT(
-        &queueConfig,
-        WdfIoQueueDispatchManual);
-
-    status = WdfIoQueueCreate(
-        device,
-        &queueConfig,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &queue);
-
+    // Cristina's pending reads on \\.\COMx land here.
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
+    status = WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
     if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR,
-            "Error: WdfIoQueueCreate manual queue failed 0x%x", status);
+        Trace(TRACE_LEVEL_ERROR, "Error: ComReadQueue create failed 0x%x", status);
         return status;
     }
+    queueContext->ComReadQueue = queue;
 
-    queueContext->ReadQueue = queue;
-
-    //
-    // Create another manual queue to hold pending IOCTL_SERIAL_WAIT_ON_MASK
-    //
-
-    WDF_IO_QUEUE_CONFIG_INIT(
-        &queueConfig,
-        WdfIoQueueDispatchManual);
-
-    status = WdfIoQueueCreate(
-        device,
-        &queueConfig,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &queue);
-
+    // sCristina's pending reads via IOCTL_VSERIOUS_READ land here.
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
+    status = WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
     if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR,
-            "Error: WdfIoQueueCreate manual queue failed 0x%x", status);
+        Trace(TRACE_LEVEL_ERROR, "Error: SdkReadQueue create failed 0x%x", status);
         return status;
     }
+    queueContext->SdkReadQueue = queue;
 
+    // Wait-on-mask pending queue (IOCTL_SERIAL_WAIT_ON_MASK).
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
+    status = WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
+    if (!NT_SUCCESS(status)) {
+        Trace(TRACE_LEVEL_ERROR, "Error: WaitMaskQueue create failed 0x%x", status);
+        return status;
+    }
     queueContext->WaitMaskQueue = queue;
 
-    RingBufferInitialize(&queueContext->RingBuffer,
-        queueContext->Buffer,
-        sizeof(queueContext->Buffer));
+    RingBufferInitialize(&queueContext->RingBufferPcToHw,
+        queueContext->BufferPcToHw, sizeof(queueContext->BufferPcToHw));
+    RingBufferInitialize(&queueContext->RingBufferHwToPc,
+        queueContext->BufferHwToPc, sizeof(queueContext->BufferHwToPc));
+
+    // Tell the controller which queue context to route SDK IOCTLs to. Stays
+    // valid for the lifetime of the child PDO. EvtChildListCreateDevice has
+    // already populated controllerContext->ActiveChildQueue == NULL.
+    if (DeviceContext->Device) {
+        WDFDEVICE parent = WdfPdoGetParent(DeviceContext->Device);
+        if (parent) {
+            PCONTROLLER_CONTEXT cc = GetControllerContext(parent);
+            cc->ActiveChildQueue = queueContext;
+        }
+    }
 
     return status;
 }
@@ -132,55 +125,9 @@ QueueCreateController(
     queueContext->Queue = queue;
     queueContext->ControllerContext = ControllerContext;
 
-    //
-    // Create a manual queue to hold pending read requests. By keeping
-    // them in the queue, framework takes care of cancelling them if the app
-    // exits
-    //
-
-    WDF_IO_QUEUE_CONFIG_INIT(
-        &queueConfig,
-        WdfIoQueueDispatchManual);
-
-    status = WdfIoQueueCreate(
-        device,
-        &queueConfig,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &queue);
-
-    if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR,
-            "Error: WdfIoQueueCreate manual queue failed 0x%x", status);
-        return status;
-    }
-
-    queueContext->ReadQueue = queue;
-
-    //
-    // Create another manual queue to hold pending IOCTL_SERIAL_WAIT_ON_MASK
-    //
-
-    WDF_IO_QUEUE_CONFIG_INIT(
-        &queueConfig,
-        WdfIoQueueDispatchManual);
-
-    status = WdfIoQueueCreate(
-        device,
-        &queueConfig,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &queue);
-
-    if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR,
-            "Error: WdfIoQueueCreate manual queue failed 0x%x", status);
-        return status;
-    }
-
-    queueContext->WaitMaskQueue = queue;
-
-    RingBufferInitialize(&queueContext->RingBuffer,
-        queueContext->Buffer,
-        sizeof(queueContext->Buffer));
+    // The controller queue itself doesn't move bytes — IOCTL_VSERIOUS_READ
+    // and IOCTL_VSERIOUS_WRITE forward to the child PDO's QUEUE_CONTEXT
+    // (ActiveChildQueue) for the per-direction ring buffers and read queues.
 
     return status;
 }
@@ -494,6 +441,76 @@ vSeriousControllerEvtIoDeviceControl(
             break;
         }
         status = RequestCopyFromBuffer(Request, link->Buffer, link->Length);
+        break;
+    }
+
+    case IOCTL_VSERIOUS_WRITE:
+    {
+        // sCristina pushed bytes meant for Cristina. Drop them in HW→PC and
+        // wake any Cristina ReadFile that's parked waiting for data.
+        PQUEUE_CONTEXT childQc = controllerContext->ActiveChildQueue;
+        WDFMEMORY memory;
+        size_t inLen;
+        PUCHAR inBuf;
+        size_t availableData = 0;
+        WDFREQUEST savedRead;
+
+        if (childQc == NULL) {
+            status = STATUS_INVALID_DEVICE_STATE;
+            break;
+        }
+        status = WdfRequestRetrieveInputMemory(Request, &memory);
+        if (!NT_SUCCESS(status)) break;
+        inBuf = (PUCHAR)WdfMemoryGetBuffer(memory, &inLen);
+
+        status = RingBufferWrite(&childQc->RingBufferHwToPc, inBuf, inLen);
+        if (!NT_SUCCESS(status)) break;
+        WdfRequestSetInformation(Request, inLen);
+
+        // Drain Cristina's pending COM reads.
+        RingBufferGetAvailableData(&childQc->RingBufferHwToPc, &availableData);
+        if (availableData > 0) {
+            for (; ; ) {
+                NTSTATUS s = WdfIoQueueRetrieveNextRequest(childQc->ComReadQueue, &savedRead);
+                if (!NT_SUCCESS(s)) break;
+                s = WdfRequestForwardToIoQueue(savedRead, childQc->Queue);
+                if (!NT_SUCCESS(s)) WdfRequestComplete(savedRead, s);
+            }
+        }
+        break;
+    }
+
+    case IOCTL_VSERIOUS_READ:
+    {
+        // sCristina wants bytes Cristina wrote. Drain PC→HW; park if empty.
+        PQUEUE_CONTEXT childQc = controllerContext->ActiveChildQueue;
+        WDFMEMORY memory;
+        size_t outLen;
+        PUCHAR outBuf;
+        size_t bytesCopied = 0;
+
+        if (childQc == NULL) {
+            status = STATUS_INVALID_DEVICE_STATE;
+            break;
+        }
+        status = WdfRequestRetrieveOutputMemory(Request, &memory);
+        if (!NT_SUCCESS(status)) break;
+        outBuf = (PUCHAR)WdfMemoryGetBuffer(memory, &outLen);
+
+        status = RingBufferRead(&childQc->RingBufferPcToHw, outBuf, outLen, &bytesCopied);
+        if (!NT_SUCCESS(status)) break;
+
+        if (bytesCopied > 0) {
+            WdfRequestSetInformation(Request, bytesCopied);
+            break;
+        }
+
+        // No data — park in the child's SdkReadQueue. EvtIoWrite (COM port)
+        // will reanimate us when Cristina writes.
+        status = WdfRequestForwardToIoQueue(Request, childQc->SdkReadQueue);
+        if (NT_SUCCESS(status)) {
+            return;   // pending; do NOT complete here
+        }
         break;
     }
 
@@ -893,6 +910,8 @@ vSeriousDeviceEvtIoWrite(
         return;
     }
 
+    // Cristina's COM port writes land in the PC→HW buffer (drained by
+    // sCristina via IOCTL_VSERIOUS_READ).
     status = QueueProcessWriteBytes(
         queueContext,
         (PUCHAR)WdfMemoryGetBuffer(memory, NULL),
@@ -904,32 +923,38 @@ vSeriousDeviceEvtIoWrite(
 
     WdfRequestCompleteWithInformation(Request, status, Length);
 
-    RingBufferGetAvailableData(
-        &queueContext->RingBuffer,
-        &availableData);
-
+    // Kick any sCristina reads (controller IOCTL_VSERIOUS_READ) waiting on
+    // PC→HW data. The dispatch sends them back to the controller's parallel
+    // queue where they re-enter vSeriousControllerEvtIoDeviceControl and now
+    // find data sitting in the buffer.
+    RingBufferGetAvailableData(&queueContext->RingBufferPcToHw, &availableData);
     if (availableData == 0) {
         return;
     }
-    
-    // next request
+
     for (; ; ) {
+        WDFQUEUE controllerQueue;
+        status = WdfIoQueueRetrieveNextRequest(queueContext->SdkReadQueue, &savedRequest);
+        if (!NT_SUCCESS(status)) break;
 
-        status = WdfIoQueueRetrieveNextRequest(
-            queueContext->ReadQueue,
-            &savedRequest);
-
-        if (!NT_SUCCESS(status)) {
-            break;
+        // The parked SDK reads need to go back to the controller's default
+        // queue, not the COM port's. We recorded that queue when we created
+        // the controller queue — pull it via the controller context.
+        if (queueContext->DeviceContext) {
+            WDFDEVICE parent = WdfPdoGetParent(queueContext->DeviceContext->Device);
+            PCONTROLLER_CONTEXT cc = parent ? GetControllerContext(parent) : NULL;
+            controllerQueue = (cc != NULL) ? WdfDeviceGetDefaultQueue(cc->Controller) : NULL;
+        } else {
+            controllerQueue = NULL;
+        }
+        if (controllerQueue == NULL) {
+            WdfRequestComplete(savedRequest, STATUS_DEVICE_NOT_READY);
+            continue;
         }
 
-        status = WdfRequestForwardToIoQueue(
-            savedRequest,
-            Queue);
-
+        status = WdfRequestForwardToIoQueue(savedRequest, controllerQueue);
         if (!NT_SUCCESS(status)) {
-            Trace(TRACE_LEVEL_ERROR,
-                "Error: WdfRequestForwardToIoQueue failed 0x%x", status);
+            Trace(TRACE_LEVEL_ERROR, "Error: forward SDK read failed 0x%x", status);
             WdfRequestComplete(savedRequest, status);
         }
     }
@@ -962,7 +987,9 @@ vSeriousDeviceEvtIoRead(
         return;
     }
 
-    status = RingBufferRead(&queueContext->RingBuffer,
+    // Cristina's COM port reads drain the HW→PC buffer (filled by sCristina
+    // via IOCTL_VSERIOUS_WRITE).
+    status = RingBufferRead(&queueContext->RingBufferHwToPc,
         (BYTE*)WdfMemoryGetBuffer(memory, NULL),
         Length,
         &bytesCopied);
@@ -976,11 +1003,9 @@ vSeriousDeviceEvtIoRead(
         return;
     }
     else {
-        status = WdfRequestForwardToIoQueue(Request,
-            queueContext->ReadQueue);
+        status = WdfRequestForwardToIoQueue(Request, queueContext->ComReadQueue);
         if (!NT_SUCCESS(status)) {
-            Trace(TRACE_LEVEL_ERROR,
-                "Error: WdfRequestForwardToIoQueue failed 0x%x", status);
+            Trace(TRACE_LEVEL_ERROR, "Error: forward COM read failed 0x%x", status);
             WdfRequestComplete(Request, status);
         }
     }
@@ -1011,7 +1036,7 @@ QueueProcessWriteBytes(
             continue;
         }
 
-        status = RingBufferWrite(&QueueContext->RingBuffer,
+        status = RingBufferWrite(&QueueContext->RingBufferPcToHw,
             &currentCharacter,
             sizeof(currentCharacter));
         if (!NT_SUCCESS(status)) {
@@ -1074,7 +1099,7 @@ QueueProcessWriteBytes(
                     //
                     //  place <cr><lf>CONNECT<cr><lf>  in the buffer
                     //
-                    status = RingBufferWrite(&QueueContext->RingBuffer,
+                    status = RingBufferWrite(&QueueContext->RingBufferPcToHw,
                         connectString,
                         connectStringCch);
                     if (!NT_SUCCESS(status)) {
@@ -1090,7 +1115,7 @@ QueueProcessWriteBytes(
                     //
                     //  place <cr><lf>OK<cr><lf>  in the buffer
                     //
-                    status = RingBufferWrite(&QueueContext->RingBuffer,
+                    status = RingBufferWrite(&QueueContext->RingBufferPcToHw,
                         okString,
                         okStringCch);
                     if (!NT_SUCCESS(status)) {

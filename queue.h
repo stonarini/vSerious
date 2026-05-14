@@ -24,15 +24,26 @@ typedef struct _QUEUE_CONTEXT
 
     BOOLEAN         CurrentlyConnected;
 
-    RING_BUFFER     RingBuffer;         // Ring buffer for pending data
+    // Direction-separated buffers. Single-buffer loopback breaks two-app
+    // scenarios (sCristina emulating hw while Cristina is the PC) — each
+    // side's write was echoing into its own read, plus both ends raced for
+    // the same data. PcToHw carries Cristina→sCristina; HwToPc carries
+    // sCristina→Cristina. Only the COM port queue context actually uses
+    // these; the controller queue context inherits the type for convenience
+    // but routes through its child's queue context.
+    RING_BUFFER     RingBufferPcToHw;
+    BYTE            BufferPcToHw[DATA_BUFFER_SIZE];
 
-    BYTE            Buffer[DATA_BUFFER_SIZE];
+    RING_BUFFER     RingBufferHwToPc;
+    BYTE            BufferHwToPc[DATA_BUFFER_SIZE];
 
     WDFQUEUE        Queue;              // Default parallel queue
 
-    WDFQUEUE        ReadQueue;          // Manual queue for pending reads
+    WDFQUEUE        ComReadQueue;       // Pending Cristina reads (\\.\COMx)
 
-    WDFQUEUE        WaitMaskQueue;      // Manual queue for pending ioctl wait-on-mask
+    WDFQUEUE        SdkReadQueue;       // Pending sCristina reads (controller IOCTL)
+
+    WDFQUEUE        WaitMaskQueue;      // Pending ioctl wait-on-mask
 
     PDEVICE_CONTEXT DeviceContext;
 

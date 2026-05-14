@@ -293,6 +293,16 @@ vSeriousPdoEvtDeviceCleanup(
         (void)DeviceDeleteSerialCommMap(device, deviceContext->PdoName);
         deviceContext->CreatedLegacyHardwareKey = FALSE;
     }
+
+    // Drop the controller's pointer to this child's queue context, otherwise
+    // a later IOCTL_VSERIOUS_READ/WRITE would dereference freed memory.
+    {
+        WDFDEVICE parent = WdfPdoGetParent(device);
+        if (parent) {
+            PCONTROLLER_CONTEXT cc = GetControllerContext(parent);
+            cc->ActiveChildQueue = NULL;
+        }
+    }
 }
 
 NTSTATUS
