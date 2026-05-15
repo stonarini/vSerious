@@ -16,19 +16,27 @@ File_Copy_Driver             = 12    ; Windows\System32\drivers
 WdfCoInstaller_CopyFiles_x86 = 11
 WdfCoInstaller_CopyFiles_x64 = 11
 
+; Disk 1 root points at the arch-specific subdir so inf2cat finds
+; vSerious.sys and the matching CoInstaller under x64\ or x86\.
+; Without these arch-decorated entries the base disk subdir ("") makes
+; inf2cat look at the driver root, where neither file exists.
 [SourceDisksNames]
 1 = %DiskName%,,,""
 
-; Arch-specific subsections tell pnputil/inf2cat the .sys and WdfCoInstaller
-; DLL live in <package>\x64\ or <package>\x86\ depending on target. Each
-; .sys is built from a separate Release|x64 / Release|Win32 driver compile.
-[SourceDisksFiles.amd64]
-vSerious.sys                  = 1,x64
-WdfCoInstaller01011_x64.dll   = 1,x64
+[SourceDisksNames.x86]
+1 = %DiskName%,,,x86
+
+[SourceDisksNames.amd64]
+1 = %DiskName%,,,x64
+
+[SourceDisksFiles]
+vSerious.sys = 1
 
 [SourceDisksFiles.x86]
-vSerious.sys                  = 1,x86
-WdfCoInstaller01011_x86.dll   = 1,x86
+WdfCoInstaller01011_x86.dll = 1
+
+[SourceDisksFiles.amd64]
+WdfCoInstaller01011_x64.dll = 1
 
 ;*****************************************
 ; Manufacturer Section
