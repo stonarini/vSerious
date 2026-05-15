@@ -100,9 +100,6 @@ KmdfService = vSerious, vSerious_wdfsect
 [vSerious_Install_Win10.NT.Services]
 AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
 
-[vSerious_Install_Win10.NT.CoInstallers]
-CopyFiles = WdfCoInstaller_CopyFiles_x64
-
 ;*****************************************
 ; Shared Sections
 ;*****************************************
