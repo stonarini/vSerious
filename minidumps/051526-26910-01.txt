@@ -1,0 +1,312 @@
+
+************* Preparing the environment for Debugger Extensions Gallery repositories **************
+   ExtensionRepository : Implicit
+   UseExperimentalFeatureForNugetShare : true
+   AllowNugetExeUpdate : true
+   NonInteractiveNuget : true
+   AllowNugetMSCredentialProviderInstall : true
+   AllowParallelInitializationOfLocalRepositories : true
+
+   EnableRedirectToV8JsProvider : false
+
+   -- Configuring repositories
+      ----> Repository : LocalInstalled, Enabled: true
+      ----> Repository : UserExtensions, Enabled: true
+
+>>>>>>>>>>>>> Preparing the environment for Debugger Extensions Gallery repositories completed, duration 0.313 seconds
+
+************* Waiting for Debugger Extensions Gallery to Initialize **************
+
+>>>>>>>>>>>>> Waiting for Debugger Extensions Gallery to Initialize completed, duration 0.859 seconds
+   ----> Repository : UserExtensions, Enabled: true, Packages count: 0
+   ----> Repository : LocalInstalled, Enabled: true, Packages count: 29
+
+Microsoft (R) Windows Debugger Version 10.0.26100.4188 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+
+Loading Dump File [C:\Windows\Minidump\051426-24750-01.dmp]
+Mini Kernel Dump File: Only registers and stack trace are available
+
+Symbol search path is: srv*
+Executable search path is: 
+Windows 10 Kernel Version 19041 MP (2 procs) Free x64
+Product: WinNt, suite: TerminalServer SingleUserTS
+Kernel base = 0xfffff802`29614000 PsLoadedModuleList = 0xfffff802`2a23e420
+Debug session time: Thu May 14 19:44:20.840 2026 (UTC - 4:00)
+System Uptime: 0 days 0:27:18.999
+Loading Kernel Symbols
+...............................................................
+................................................................
+..........................................
+Loading User Symbols
+PEB is paged out (Peb.Ldr = 00000000`0086a018).  Type ".hh dbgerr001" for details
+Loading unloaded module list
+......
+For analysis of this file, run !analyze -v
+1: kd> !analyze -v
+*******************************************************************************
+*                                                                             *
+*                        Bugcheck Analysis                                    *
+*                                                                             *
+*******************************************************************************
+
+SYSTEM_SERVICE_EXCEPTION (3b)
+An exception happened while executing a system service routine.
+Arguments:
+Arg1: 0000000080000003, Exception code that caused the BugCheck
+Arg2: fffff80229a1af60, Address of the instruction which caused the BugCheck
+Arg3: ffffa100b15be920, Address of the context record for the exception that caused the BugCheck
+Arg4: 0000000000000000, zero.
+
+Debugging Details:
+------------------
+
+*** WARNING: Unable to verify timestamp for vSerious.sys
+
+KEY_VALUES_STRING: 1
+
+    Key  : Analysis.CPU.mSec
+    Value: 5765
+
+    Key  : Analysis.Elapsed.mSec
+    Value: 8921
+
+    Key  : Analysis.IO.Other.Mb
+    Value: 0
+
+    Key  : Analysis.IO.Read.Mb
+    Value: 0
+
+    Key  : Analysis.IO.Write.Mb
+    Value: 0
+
+    Key  : Analysis.Init.CPU.mSec
+    Value: 3343
+
+    Key  : Analysis.Init.Elapsed.mSec
+    Value: 17306
+
+    Key  : Analysis.Memory.CommitPeak.Mb
+    Value: 99
+
+    Key  : Bugcheck.Code.LegacyAPI
+    Value: 0x3b
+
+    Key  : Dump.Attributes.AsUlong
+    Value: 8
+
+    Key  : Dump.Attributes.KernelGeneratedTriageDump
+    Value: 1
+
+    Key  : Failure.Bucket
+    Value: 0x3B_80000003_vSerious!unknown_function
+
+    Key  : Failure.Hash
+    Value: {c997d550-fa1c-b2f7-df96-ba86c555c582}
+
+    Key  : Hypervisor.Enlightenments.Value
+    Value: 20836
+
+    Key  : Hypervisor.Enlightenments.ValueHex
+    Value: 5164
+
+    Key  : Hypervisor.Flags.AnyHypervisorPresent
+    Value: 1
+
+    Key  : Hypervisor.Flags.ApicEnlightened
+    Value: 0
+
+    Key  : Hypervisor.Flags.ApicVirtualizationAvailable
+    Value: 0
+
+    Key  : Hypervisor.Flags.AsyncMemoryHint
+    Value: 0
+
+    Key  : Hypervisor.Flags.CoreSchedulerRequested
+    Value: 0
+
+    Key  : Hypervisor.Flags.CpuManager
+    Value: 0
+
+    Key  : Hypervisor.Flags.DeprecateAutoEoi
+    Value: 1
+
+    Key  : Hypervisor.Flags.DynamicCpuDisabled
+    Value: 0
+
+    Key  : Hypervisor.Flags.Epf
+    Value: 0
+
+    Key  : Hypervisor.Flags.ExtendedProcessorMasks
+    Value: 1
+
+    Key  : Hypervisor.Flags.HardwareMbecAvailable
+    Value: 0
+
+    Key  : Hypervisor.Flags.MaxBankNumber
+    Value: 0
+
+    Key  : Hypervisor.Flags.MemoryZeroingControl
+    Value: 0
+
+    Key  : Hypervisor.Flags.NoExtendedRangeFlush
+    Value: 1
+
+    Key  : Hypervisor.Flags.NoNonArchCoreSharing
+    Value: 0
+
+    Key  : Hypervisor.Flags.Phase0InitDone
+    Value: 1
+
+    Key  : Hypervisor.Flags.PowerSchedulerQos
+    Value: 0
+
+    Key  : Hypervisor.Flags.RootScheduler
+    Value: 0
+
+    Key  : Hypervisor.Flags.SynicAvailable
+    Value: 1
+
+    Key  : Hypervisor.Flags.UseQpcBias
+    Value: 0
+
+    Key  : Hypervisor.Flags.Value
+    Value: 536760
+
+    Key  : Hypervisor.Flags.ValueHex
+    Value: 830b8
+
+    Key  : Hypervisor.Flags.VpAssistPage
+    Value: 1
+
+    Key  : Hypervisor.Flags.VsmAvailable
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.AccessStats
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.CrashdumpEnlightened
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.CreateVirtualProcessor
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.DisableHyperthreading
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.HostTimelineSync
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.HypervisorDebuggingEnabled
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.IsHyperV
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.LivedumpEnlightened
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.MapDeviceInterrupt
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.MceEnlightened
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.Nested
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.StartLogicalProcessor
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.Value
+    Value: 0
+
+    Key  : Hypervisor.RootFlags.ValueHex
+    Value: 0
+
+
+BUGCHECK_CODE:  3b
+
+BUGCHECK_P1: 80000003
+
+BUGCHECK_P2: fffff80229a1af60
+
+BUGCHECK_P3: ffffa100b15be920
+
+BUGCHECK_P4: 0
+
+FILE_IN_CAB:  051426-24750-01.dmp
+
+DUMP_FILE_ATTRIBUTES: 0x8
+  Kernel Generated Triage Dump
+
+CONTEXT:  ffffa100b15be920 -- (.cxr 0xffffa100b15be920)
+rax=ffffdb8a84f50de0 rbx=0000000000000000 rcx=fffff8022ad49b30
+rdx=ffffdb8a84f50fa0 rsi=ffffdb8a95321a10 rdi=ffffdb8a84f50de0
+rip=fffff80229a1af60 rsp=ffffeb8ba5e000a8 rbp=ffffdb8a84dc2090
+ r8=ffffeb8ba5e000f0  r9=ffffdb8a84f50fa0 r10=7efefeff72746e68
+r11=8101010101010100 r12=0000000000000000 r13=0000000000000400
+r14=ffffdb8a86621aa0 r15=000024756acde5e8
+iopl=0         nv up ei pl nz na pe nc
+cs=0010  ss=0018  ds=002b  es=002b  fs=0053  gs=002b             efl=00040202
+nt!DbgBreakPoint:
+fffff802`29a1af60 cc              int     3
+Resetting default scope
+
+BLACKBOXBSD: 1 (!blackboxbsd)
+
+
+BLACKBOXNTFS: 1 (!blackboxntfs)
+
+
+BLACKBOXPNP: 1 (!blackboxpnp)
+
+
+BLACKBOXWINLOGON: 1
+
+CUSTOMER_CRASH_COUNT:  1
+
+PROCESS_NAME:  sCristina.exe
+
+STACK_TEXT:  
+ffffeb8b`a5e000a8 fffff802`2acddf57     : ffffdb8a`84dc0026 ffffdb8a`84f50fa0 ffffeb8b`a5e000f0 ffffdb8a`84f50fa0 : nt!DbgBreakPoint
+ffffeb8b`a5e000b0 fffff802`2ad732a5     : 00000000`00737973 ffffdb8a`84dc2090 ffffdb8a`95321a10 ffffdb8a`84f19750 : Wdf01000!FxVerifierDbgBreakPoint+0x4b [minkernel\wdf\framework\shared\inc\private\common\fxverifier.h @ 97] 
+ffffeb8b`a5e000f0 fffff802`2acd8337     : ffffdb8a`95321a10 00000000`00e81002 ffffdb8a`84f50de0 00000000`000003ff : Wdf01000!FxIoQueue::Vf_VerifyForwardRequest+0xb9 [minkernel\wdf\framework\shared\irphandlers\io\fxioqueue.cpp @ 1733] 
+ffffeb8b`a5e00150 fffff802`3ba23e26     : ffffdb8a`86621aa0 ffffdb8a`95321a10 ffffdb8a`95321a10 ffffdb8a`84dc2090 : Wdf01000!imp_WdfRequestForwardToIoQueue+0x1c7a7 [minkernel\wdf\framework\shared\core\fxrequestapi.cpp @ 3130] 
+ffffeb8b`a5e001a0 ffffdb8a`86621aa0     : ffffdb8a`95321a10 ffffdb8a`95321a10 ffffdb8a`84dc2090 fffff802`2acbbb90 : vSerious+0x3e26
+ffffeb8b`a5e001a8 ffffdb8a`95321a10     : ffffdb8a`95321a10 ffffdb8a`84dc2090 fffff802`2acbbb90 ffffdb8a`84f50de0 : 0xffffdb8a`86621aa0
+ffffeb8b`a5e001b0 ffffdb8a`95321a10     : ffffdb8a`84dc2090 fffff802`2acbbb90 ffffdb8a`84f50de0 00000000`001b6010 : 0xffffdb8a`95321a10
+ffffeb8b`a5e001b8 ffffdb8a`84dc2090     : fffff802`2acbbb90 ffffdb8a`84f50de0 00000000`001b6010 fffff802`3ba2487b : 0xffffdb8a`95321a10
+ffffeb8b`a5e001c0 fffff802`2acbbb8f     : ffffdb8a`84f50de0 00000000`001b6010 fffff802`3ba2487b 00002475`6acde5e8 : 0xffffdb8a`84dc2090
+ffffeb8b`a5e001c8 ffffdb8a`84f50de0     : 00000000`001b6010 fffff802`3ba2487b 00002475`6acde5e8 00002475`799de558 : Wdf01000!FxIoQueue::ForwardRequestWorker+0x1ab
+ffffeb8b`a5e001d0 00000000`001b6010     : fffff802`3ba2487b 00002475`6acde5e8 00002475`799de558 00000000`00000400 : 0xffffdb8a`84f50de0
+ffffeb8b`a5e001d8 fffff802`3ba2487b     : 00002475`6acde5e8 00002475`799de558 00000000`00000400 ffffeb8b`a5e00248 : 0x1b6010
+ffffeb8b`a5e001e0 00002475`6acde5e8     : 00002475`799de558 00000000`00000400 ffffeb8b`a5e00248 00000000`00000000 : vSerious+0x487b
+ffffeb8b`a5e001e8 00002475`799de558     : 00000000`00000400 ffffeb8b`a5e00248 00000000`00000000 ffffa100`001b6010 : 0x00002475`6acde5e8
+ffffeb8b`a5e001f0 00000000`00000400     : ffffeb8b`a5e00248 00000000`00000000 ffffa100`001b6010 ffffdb8a`8744ed90 : 0x00002475`799de558
+ffffeb8b`a5e001f8 ffffeb8b`a5e00248     : 00000000`00000000 ffffa100`001b6010 ffffdb8a`8744ed90 00000000`00000000 : 0x400
+ffffeb8b`a5e00200 00000000`00000000     : ffffa100`001b6010 ffffdb8a`8744ed90 00000000`00000000 00002475`6acde500 : 0xffffeb8b`a5e00248
+
+
+SYMBOL_NAME:  vSerious+3e26
+
+MODULE_NAME: vSerious
+
+IMAGE_NAME:  vSerious.sys
+
+STACK_COMMAND:  .cxr 0xffffa100b15be920 ; kb
+
+BUCKET_ID_FUNC_OFFSET:  3e26
+
+FAILURE_BUCKET_ID:  0x3B_80000003_vSerious!unknown_function
+
+OSPLATFORM_TYPE:  x64
+
+OSNAME:  Windows 10
+
+FAILURE_ID_HASH:  {c997d550-fa1c-b2f7-df96-ba86c555c582}
+
+Followup:     MachineOwner
+---------
+
