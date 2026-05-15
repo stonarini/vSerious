@@ -21,19 +21,20 @@ CatalogFile = vSerious.cat
 [SourceDisksNames]
 1 = %DiskName%,,,""
 
-; Arch-specific subsections — same layout as vSerious.inf so the package
-; signs cleanly against inf2cat.
-[SourceDisksFiles.amd64]
-vSerious.sys = 1,x64
-
-[SourceDisksFiles.x86]
-vSerious.sys = 1,x86
+; Flat per-arch package layout — vSerious.sys is at the root of each
+; arch dir (driver-x64\ or driver-x86\), not in a subdir.
+[SourceDisksFiles]
+vSerious.sys = 1
 
 [Manufacturer]
-%ManufacturerName% = Standard,NTx86,NTamd64,NTamd64.10.0...16299
+%ManufacturerName% = Standard,NTx86,NTx86.10.0...16299,NTamd64,NTamd64.10.0...16299
 
 ; Windows 7 x86
 [Standard.NTx86]
+%vSerious.PortDesc% = vSerious_Port_Install.NTx86, vSerious\Port
+
+; Windows 10 x86 (1709+)
+[Standard.NTx86.10.0...16299]
 %vSerious.PortDesc% = vSerious_Port_Install.NTx86, vSerious\Port
 
 ; Windows 7 x64
