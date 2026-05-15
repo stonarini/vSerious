@@ -4,8 +4,8 @@
 
 [Version]
 Signature   = "$WINDOWS NT$"
-Class = SoftwareDevice
-ClassGuid = {62f9c741-b25a-46ce-b54c-9bccce08b6f2}
+Class = System
+ClassGuid = {4D36E97D-E325-11CE-BFC1-08002BE10318}
 Provider    = %ManufacturerName%
 CatalogFile = vSerious.cat
 DriverVer   = 05/15/2026,1.0.0.2
