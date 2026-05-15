@@ -166,16 +166,13 @@
     <ClInclude Include="ringbuffer.h" />
     <ClInclude Include="serial.h" />
   </ItemGroup>
-  <ItemGroup>
-    <CopyFileToFolders Include="..\..\..\..\..\Program Files (x86)\Windows Kits\8.0\redist\wdf\x64\WdfCoInstaller01011_x64.dll">
-      <FileType>Document</FileType>
-      <DestinationFolders Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)\$(ProjectName)</DestinationFolders>
-    </CopyFileToFolders>
-    <CopyFileToFolders Include="..\..\..\..\..\Program Files (x86)\Windows Kits\8.0\redist\wdf\x86\WdfCoInstaller01011_x86.dll">
-      <FileType>Document</FileType>
-      <DestinationFolders Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)\$(ProjectName)</DestinationFolders>
-    </CopyFileToFolders>
-  </ItemGroup>
+  <!--
+    The WdfCoInstaller01011_*.dll files are no longer copied as part of the
+    project build. They're staged into the installer payload separately by
+    sCristina\installer\build.ps1, which knows about Windows Kits\10\Redist
+    and the installer\extra fallback. The previous hardcoded path to
+    Windows Kits\8.0 broke on every modern WDK install.
+  -->
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
