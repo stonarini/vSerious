@@ -95,6 +95,13 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <!-- Catalog signing and INF validation are owned by installer\signing\sign-driver.ps1,
+         which runs inf2cat against the fully-staged flat per-arch packages. Disabling the
+         build-time inf2cat and InfVerif targets here avoids false failures caused by
+         WdfCoInstaller DLLs not being present in the flat build output directory. -->
+    <Inf2CatWindowsVersionList></Inf2CatWindowsVersionList>
+  </PropertyGroup>
   <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
