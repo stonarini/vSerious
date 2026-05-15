@@ -16,18 +16,11 @@ File_Copy_Driver             = 12    ; Windows\System32\drivers
 WdfCoInstaller_CopyFiles_x86 = 11
 WdfCoInstaller_CopyFiles_x64 = 11
 
-; Disk 1 root points at the arch-specific subdir so inf2cat finds
-; vSerious.sys and the matching CoInstaller under x64\ or x86\.
-; Without these arch-decorated entries the base disk subdir ("") makes
-; inf2cat look at the driver root, where neither file exists.
+; Flat per-arch package layout: the installer builds separate driver-x64\
+; and driver-x86\ directories, each with vSerious.inf + .sys + CoInstaller
+; all at the root. inf2cat and pnputil both see a flat directory.
 [SourceDisksNames]
 1 = %DiskName%,,,""
-
-[SourceDisksNames.x86]
-1 = %DiskName%,,,x86
-
-[SourceDisksNames.amd64]
-1 = %DiskName%,,,x64
 
 [SourceDisksFiles]
 vSerious.sys = 1
@@ -43,17 +36,21 @@ WdfCoInstaller01011_x64.dll = 1
 ;*****************************************
 
 [Manufacturer]
-%ManufacturerName% = Standard,NTx86,NTamd64,NTamd64.10.0...16299
+%ManufacturerName% = Standard,NTx86,NTx86.10.0...16299,NTamd64,NTamd64.10.0...16299
 
 ; Windows 7 x86
 [Standard.NTx86]
 %vSerious.DeviceDesc% = vSerious_Install_Win7.NTx86, Root\vSerious
 
+; Windows 10 x86 (1709+) — KMDF is inbox, no CoInstaller needed
+[Standard.NTx86.10.0...16299]
+%vSerious.DeviceDesc% = vSerious_Install_Win10.NT, Root\vSerious
+
 ; Windows 7 x64
 [Standard.NTamd64]
 %vSerious.DeviceDesc% = vSerious_Install_Win7.NTamd64, Root\vSerious
 
-; Windows 10 x64 (1709+) with DIRID 13 support
+; Windows 10 x64 (1709+) — KMDF is inbox, no CoInstaller needed
 [Standard.NTamd64.10.0...16299]
 %vSerious.DeviceDesc% = vSerious_Install_Win10.NT, Root\vSerious
 
@@ -89,7 +86,7 @@ AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
 [vSerious_Install_Win7.NTamd64.CoInstallers]
 CopyFiles = WdfCoInstaller_CopyFiles_x64
 
-; -------- Windows 10 x64 Install (16299+) --------
+; -------- Windows 10 Install (x86 + x64, 1709+) --------
 [vSerious_Install_Win10.NT]
 CopyFiles   = File_Copy_Driver
 AddService  = vSerious, %SPSVCINST_ASSOCSERVICE%, vSerious_Service_Inst
@@ -133,4 +130,3 @@ ManufacturerName           = "stonarini"
 DiskName                   = "vSerious Installation Disk"
 vSerious.DeviceDesc        = "vSerious Virtual COM Port Controller"
 vSerious.SVCDESC           = "vSerious Virtual COM Port Controller"
-
