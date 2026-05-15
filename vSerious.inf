@@ -19,10 +19,16 @@ WdfCoInstaller_CopyFiles_x64 = 11
 [SourceDisksNames]
 1 = %DiskName%,,,""
 
-[SourceDisksFiles]
-vSerious.sys                   = 1,,
-WdfCoInstaller01011_x86.dll   = 1,,,
-WdfCoInstaller01011_x64.dll   = 1,,,
+; Arch-specific subsections tell pnputil/inf2cat the .sys and WdfCoInstaller
+; DLL live in <package>\x64\ or <package>\x86\ depending on target. Each
+; .sys is built from a separate Release|x64 / Release|Win32 driver compile.
+[SourceDisksFiles.amd64]
+vSerious.sys                  = 1,x64
+WdfCoInstaller01011_x64.dll   = 1,x64
+
+[SourceDisksFiles.x86]
+vSerious.sys                  = 1,x86
+WdfCoInstaller01011_x86.dll   = 1,x86
 
 ;*****************************************
 ; Manufacturer Section

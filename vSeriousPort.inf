@@ -21,8 +21,13 @@ CatalogFile = vSerious.cat
 [SourceDisksNames]
 1 = %DiskName%,,,""
 
-[SourceDisksFiles]
-vSerious.sys = 1,,
+; Arch-specific subsections — same layout as vSerious.inf so the package
+; signs cleanly against inf2cat.
+[SourceDisksFiles.amd64]
+vSerious.sys = 1,x64
+
+[SourceDisksFiles.x86]
+vSerious.sys = 1,x86
 
 [Manufacturer]
 %ManufacturerName% = Standard,NTx86,NTamd64,NTamd64.10.0...16299
