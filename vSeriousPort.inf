@@ -69,6 +69,7 @@ DisplayName    = %vSerious.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\vSerious.sys
 
 ; --------- shared AddReg ---------
 [vSerious_Port_AddReg]
