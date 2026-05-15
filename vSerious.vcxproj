@@ -96,11 +96,11 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <!-- Catalog signing and INF validation are owned by installer\signing\sign-driver.ps1,
-         which runs inf2cat against the fully-staged flat per-arch packages. Disabling the
-         build-time inf2cat and InfVerif targets here avoids false failures caused by
-         WdfCoInstaller DLLs not being present in the flat build output directory. -->
-    <Inf2CatWindowsVersionList></Inf2CatWindowsVersionList>
+    <!-- Catalog signing is owned by installer\signing\sign-driver.ps1.
+         WdfCoInstaller DLLs are not staged in the build output, so the
+         build-time inf2cat step would always fail. Disable it here;
+         the installer handles signing against the fully-staged payload. -->
+    <RunInf2Cat>false</RunInf2Cat>
   </PropertyGroup>
   <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
