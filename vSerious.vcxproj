@@ -36,43 +36,56 @@
     <RootNamespace>vSerious</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <!-- x86 and x64 configurations target Windows 7 explicitly, link the
+       Win7-compatible BufferOverflowK.lib instead of BufferOverflowFastFailK.lib
+       (which uses Win 8+ int 0x29 fast-fail that doesn't exist on Win 7),
+       and use Desktop driver target instead of Universal (Universal
+       requires Win 10 runtime helpers).
+       Per https://learn.microsoft.com/.../building-drivers-for-different-versions-of-windows
+       the KernelBufferOverflowLib element must appear before the
+       Microsoft.Cpp.props import - this PropertyGroup with Label="Configuration"
+       satisfies that requirement. -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
-    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <KernelBufferOverflowLib>$(DDK_LIB_PATH)\BufferOverflowK.lib</KernelBufferOverflowLib>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
-    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <KernelBufferOverflowLib>$(DDK_LIB_PATH)\BufferOverflowK.lib</KernelBufferOverflowLib>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
-    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <KernelBufferOverflowLib>$(DDK_LIB_PATH)\BufferOverflowK.lib</KernelBufferOverflowLib>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
-    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <KernelBufferOverflowLib>$(DDK_LIB_PATH)\BufferOverflowK.lib</KernelBufferOverflowLib>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
@@ -125,21 +138,11 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
   </PropertyGroup>
-  <!-- Global ClCompile/Link settings applied to every configuration.
-       BufferSecurityCheck (/GS) emits a __security_init_cookie call
-       from DriverEntry that fast-fails on Win 7 SP1 kernels because
-       the Win 7 PE loader doesn't randomize __security_cookie for
-       drivers compiled with the WindowsKernelModeDriver10.0 toolset
-       targeting "Universal". Disabling /GS is the standard workaround
-       for Win 7 driver builds; Universal driver guidance also notes
-       that runtime check helpers are not all guaranteed on Win 7.
-       SDLCheck adds more checks that have similar issues. -->
-  <ItemDefinitionGroup>
-    <ClCompile>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
-      <SDLCheck>false</SDLCheck>
-    </ClCompile>
-  </ItemDefinitionGroup>
+  <!-- /GS settings stay at the default. Cookie failure on Win 7 is fixed
+       by KernelBufferOverflowLib override in the per-config blocks below,
+       per https://learn.microsoft.com/.../building-drivers-for-different-versions-of-windows
+       (bug check 0x139 P1=6 says explicitly: "build the driver to run on
+       an earlier version of Windows"). -->
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <DriverSign>
       <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
