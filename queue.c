@@ -446,7 +446,17 @@ vSeriousControllerEvtIoDeviceControl(
     case IOCTL_VSERIOUS_WRITE:
     {
         // sCristina pushed bytes meant for Cristina. Drop them in HW→PC and
-        // wake any Cristina ReadFile that's parked waiting for data.
+        // drain Cristina's parked ReadFile requests INLINE — retrieve from
+        // ComReadQueue, read from the ring buffer, complete. Symmetric to
+        // vSeriousDeviceEvtIoWrite's drain of SdkReadQueue.
+        //
+        // Earlier this code retrieved + forwarded to the child's default
+        // queue (so EvtIoRead would re-dispatch). KMDF's verifier
+        // breakpointed on Win 7 SP1 (bugcheck 0x3B/0x7E, STATUS_BREAKPOINT
+        // from Vf_VerifyForwardRequest) because that forwarded request,
+        // once dispatched to EvtIoRead, could re-park itself by forwarding
+        // back to ComReadQueue — nested forward inside a queue worker.
+        // Direct retrieve+complete avoids the queue dispatch entirely.
         PQUEUE_CONTEXT childQc = controllerContext->ActiveChildQueue;
         WDFMEMORY memory;
         size_t inLen;
@@ -466,15 +476,42 @@ vSeriousControllerEvtIoDeviceControl(
         if (!NT_SUCCESS(status)) break;
         WdfRequestSetInformation(Request, inLen);
 
-        // Drain Cristina's pending COM reads.
         RingBufferGetAvailableData(&childQc->RingBufferHwToPc, &availableData);
-        if (availableData > 0) {
-            for (; ; ) {
-                NTSTATUS s = WdfIoQueueRetrieveNextRequest(childQc->ComReadQueue, &savedRead);
-                if (!NT_SUCCESS(s)) break;
-                s = WdfRequestForwardToIoQueue(savedRead, childQc->Queue);
-                if (!NT_SUCCESS(s)) WdfRequestComplete(savedRead, s);
+        while (availableData > 0) {
+            WDFMEMORY  readMem;
+            size_t     readLen = 0;
+            PUCHAR     readBuf;
+            size_t     bytesCopied = 0;
+            NTSTATUS   s;
+
+            s = WdfIoQueueRetrieveNextRequest(childQc->ComReadQueue, &savedRead);
+            if (!NT_SUCCESS(s)) break;
+
+            s = WdfRequestRetrieveOutputMemory(savedRead, &readMem);
+            if (!NT_SUCCESS(s)) {
+                WdfRequestComplete(savedRead, s);
+                RingBufferGetAvailableData(&childQc->RingBufferHwToPc, &availableData);
+                continue;
             }
+            readBuf = (PUCHAR)WdfMemoryGetBuffer(readMem, &readLen);
+
+            s = RingBufferRead(&childQc->RingBufferHwToPc,
+                readBuf, readLen, &bytesCopied);
+            if (!NT_SUCCESS(s)) {
+                WdfRequestComplete(savedRead, s);
+                break;
+            }
+            if (bytesCopied > 0) {
+                WdfRequestCompleteWithInformation(savedRead, STATUS_SUCCESS, bytesCopied);
+            }
+            else {
+                // Buffer drained between get-available and read — re-park.
+                // Same queue, same device; the verifier accepts this because
+                // it's a manual-queue re-insertion, not a cross-queue forward.
+                (VOID)WdfRequestForwardToIoQueue(savedRead, childQc->ComReadQueue);
+                break;
+            }
+            RingBufferGetAvailableData(&childQc->RingBufferHwToPc, &availableData);
         }
         break;
     }
