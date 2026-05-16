@@ -1,5 +1,6 @@
 #include "internal.h"
 #include <ntstrsafe.h>
+#include <initguid.h>
 
 // ObQueryNameString lives in ntifs.h, which conflicts with KMDF's header
 // chain. Forward-declare it here so we can read the WDM device-object name
@@ -11,6 +12,22 @@ ObQueryNameString(
     _In_ ULONG Length,
     _Out_ PULONG ReturnLength
 );
+
+// vSerious-private device class GUID for the raw child PDO.
+//
+// Microsoft's WdfPdoInitAssignRawDevice doc explicitly says: "You should
+// always specify a custom class GUID. You should not specify an existing
+// class GUID." We previously passed GUID_DEVCLASS_PORTS here, which
+// worked on Win 10 (PnP merged the duplicate registration) but caused
+// Win 7 to register the PDO as Ports class TWICE (once from this code
+// path, once from vSeriousPort.inf's [Standard.NT*] matching the compat
+// ID) and assign two consecutive COM port numbers to the same device.
+// With a private class GUID here, vSeriousPort.inf becomes the sole
+// authority for the Ports-class reclassification, and only one COM
+// port number is assigned.
+// {4B9D6586-D25A-465D-9214-552965401302}
+DEFINE_GUID(GUID_DEVCLASS_VSERIOUS_RAW_PORT,
+    0x4b9d6586, 0xd25a, 0x465d, 0x92, 0x14, 0x55, 0x29, 0x65, 0x40, 0x13, 0x02);
 
 NTSTATUS
 vSeriousEvtChildListCreateDevice(
@@ -55,7 +72,7 @@ vSeriousEvtChildListCreateDevice(
     // matching "vSerious\COMx" and the bus driver itself owns all I/O on this
     // PDO — RawDevice makes that ownership explicit to KMDF and PnP, avoiding
     // "no function driver" WDF_VIOLATIONs.
-    status = WdfPdoInitAssignRawDevice(ChildInit, &GUID_DEVCLASS_PORTS);
+    status = WdfPdoInitAssignRawDevice(ChildInit, &GUID_DEVCLASS_VSERIOUS_RAW_PORT);
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR, "ERROR: WdfPdoInitAssignRawDevice failed 0x%x", status);
         return status;
