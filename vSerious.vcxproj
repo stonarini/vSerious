@@ -26,6 +26,10 @@
     <Configuration>Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
     <RootNamespace>vSerious</RootNamespace>
+    <!-- Pin SDK version to 8.1 so VS 2022 doesn't try to inject a Win 10
+         SDK default (which we uninstalled). Required for the
+         WindowsKernelModeDriver8.1 toolset. -->
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <!-- x86 and x64 configurations target Windows 7 explicitly, link the
