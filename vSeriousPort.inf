@@ -50,20 +50,25 @@ vSerious.sys = 1
 AddReg = vSerious_Port_AddReg
 
 [vSerious_Port_Install.NTx86.Services]
-AddService = vSerious, 0x000001FA, vSerious_Service_Inst
+AddService = vSerious, 0x000001F8, vSerious_Service_Inst
 
 ; --------- amd64 install (Win7 and Win10) ---------
 [vSerious_Port_Install.NTamd64]
 AddReg = vSerious_Port_AddReg
 
 [vSerious_Port_Install.NTamd64.Services]
-AddService = vSerious, 0x000001FA, vSerious_Service_Inst
+AddService = vSerious, 0x000001F8, vSerious_Service_Inst
 
 ; --------- shared service install ---------
-; Flags 0x1FA = ASSOCSERVICE | NOCLOBBER_{DISPLAYNAME, STARTTYPE, ERRORCONTROL,
+; Flags 0x1F8 = NOCLOBBER_{DISPLAYNAME, STARTTYPE, ERRORCONTROL,
 ;               LOADORDERGROUP, DEPENDENCIES, DESCRIPTION}
-; Section must be valid for InfVerif but every settable field is NOCLOBBER'd
-; so vSerious.inf's install of this same service wins.
+; NO SPSVCINST_ASSOCSERVICE (0x2) — the child PDO is raw (bus driver owns
+; all I/O via WdfPdoInitAssignRawDevice), so we MUST NOT bind vSerious as
+; the child's function driver. On Win 7, ASSOCSERVICE on a raw PDO causes
+; PnP to attempt a function-driver binding that conflicts with the
+; raw-PDO ownership → Code 31 ("Windows cannot load the drivers required
+; for this device") on every reboot. NOCLOBBER alone keeps the section
+; valid for InfVerif's Universal driver rules without trying to bind.
 [vSerious_Service_Inst]
 DisplayName    = %vSerious.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
