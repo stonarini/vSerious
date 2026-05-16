@@ -125,6 +125,21 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
   </PropertyGroup>
+  <!-- Global ClCompile/Link settings applied to every configuration.
+       BufferSecurityCheck (/GS) emits a __security_init_cookie call
+       from DriverEntry that fast-fails on Win 7 SP1 kernels because
+       the Win 7 PE loader doesn't randomize __security_cookie for
+       drivers compiled with the WindowsKernelModeDriver10.0 toolset
+       targeting "Universal". Disabling /GS is the standard workaround
+       for Win 7 driver builds; Universal driver guidance also notes
+       that runtime check helpers are not all guaranteed on Win 7.
+       SDLCheck adds more checks that have similar issues. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <SDLCheck>false</SDLCheck>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <DriverSign>
       <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
