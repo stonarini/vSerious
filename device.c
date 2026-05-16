@@ -92,13 +92,20 @@ vSeriousEvtChildListCreateDevice(
     // Generic compatible ID so vSeriousPort.inf can match every child PDO
     // without enumerating every possible COMx hardware ID. vSeriousPort.inf
     // is what assigns Class=Ports so Device Manager categorizes correctly.
-    DECLARE_CONST_UNICODE_STRING(compatibleId, L"vSerious\\Port");
-    status = WdfPdoInitAddCompatibleID(ChildInit, &compatibleId);
-    if (!NT_SUCCESS(status)) return status;
+    // The braces are required by the v120 C compiler: DECLARE_CONST_UNICODE_STRING
+    // expands to declarations, and v120 enforces C89 "all declarations before
+    // statements" inside the enclosing function.
+    {
+        DECLARE_CONST_UNICODE_STRING(compatibleId, L"vSerious\\Port");
+        status = WdfPdoInitAddCompatibleID(ChildInit, &compatibleId);
+        if (!NT_SUCCESS(status)) return status;
+    }
 
-    DECLARE_CONST_UNICODE_STRING(deviceDesc, L"vSerious Virtual COM Port");
-    status = WdfPdoInitAddDeviceText(ChildInit, &deviceDesc, &deviceDesc, 0x409);
-    if (!NT_SUCCESS(status)) return status;
+    {
+        DECLARE_CONST_UNICODE_STRING(deviceDesc, L"vSerious Virtual COM Port");
+        status = WdfPdoInitAddDeviceText(ChildInit, &deviceDesc, &deviceDesc, 0x409);
+        if (!NT_SUCCESS(status)) return status;
+    }
 
     WdfPdoInitSetDefaultLocale(ChildInit, 0x409);
 
@@ -109,12 +116,14 @@ vSeriousEvtChildListCreateDevice(
     // returns ERROR_ACCESS_DENIED. Grant the same access the WDK virtualserial
     // sample uses: SYS full, Admins/Users/RestrictedCode RWX. Operators on
     // CNC machines need to open the port without admin rights.
-    DECLARE_CONST_UNICODE_STRING(deviceSddl,
-        L"D:P(A;;GA;;;SY)(A;;GRGWGX;;;BA)(A;;GRGWGX;;;WD)(A;;GRGWGX;;;RC)");
-    status = WdfDeviceInitAssignSDDLString(ChildInit, &deviceSddl);
-    if (!NT_SUCCESS(status)) {
-        Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceInitAssignSDDLString failed 0x%x", status);
-        return status;
+    {
+        DECLARE_CONST_UNICODE_STRING(deviceSddl,
+            L"D:P(A;;GA;;;SY)(A;;GRGWGX;;;BA)(A;;GRGWGX;;;WD)(A;;GRGWGX;;;RC)");
+        status = WdfDeviceInitAssignSDDLString(ChildInit, &deviceSddl);
+        if (!NT_SUCCESS(status)) {
+            Trace(TRACE_LEVEL_ERROR, "ERROR: WdfDeviceInitAssignSDDLString failed 0x%x", status);
+            return status;
+        }
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
