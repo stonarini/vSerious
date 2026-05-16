@@ -409,22 +409,38 @@ vSeriousControllerEvtIoDeviceControl(
 
         controllerContext->SymbolicLinkName = link;
 
-        // If a PDO with a different ComName is still parked in the child list
-        // from a prior session (we no longer tear PDOs down on Deactivate),
-        // mark it missing now so PnP retires it before the new name's PDO is
-        // added on the next Activate.
-        if (controllerContext->ComName[0] != L'\0' &&
-            wcscmp(controllerContext->ComName, rawBuffer) != 0)
+        // Iterate every present child and mark missing each one whose
+        // ComName doesn't match the requested name. This nukes ghost PDOs
+        // from prior sessions (the design keeps PDOs alive across Deactivate
+        // and across reboots, so without this active cleanup, every name
+        // change accumulates a new ghost in "Other devices" on Win 7).
+        // Mark-then-add-present is idempotent: if a child already matches
+        // the new name, the subsequent SET_ACTIVE add-as-present reuses
+        // the existing PDO instead of creating a fresh one.
         {
             WDFCHILDLIST list = WdfFdoGetDefaultChildList(controllerContext->Controller);
-            VSERIOUS_PDO_IDENTIFICATION_DESCRIPTION oldDesc;
-            RtlZeroMemory(&oldDesc, sizeof(oldDesc));
-            WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(&oldDesc.Header,
-                sizeof(VSERIOUS_PDO_IDENTIFICATION_DESCRIPTION));
-            (VOID)RtlStringCchCopyW(oldDesc.ComName,
-                ARRAYSIZE(oldDesc.ComName),
-                controllerContext->ComName);
-            (VOID)WdfChildListUpdateChildDescriptionAsMissing(list, &oldDesc.Header);
+            WDF_CHILD_LIST_ITERATOR iterator;
+            WDF_CHILD_LIST_ITERATOR_INIT(&iterator, WdfRetrievePresentChildren);
+            WdfChildListBeginIteration(list, &iterator);
+            for (;;) {
+                WDFDEVICE childDev = NULL;
+                VSERIOUS_PDO_IDENTIFICATION_DESCRIPTION scanDesc;
+                WDF_CHILD_RETRIEVE_INFO childInfo;
+                NTSTATUS iterStatus;
+
+                RtlZeroMemory(&scanDesc, sizeof(scanDesc));
+                WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(&scanDesc.Header,
+                    sizeof(VSERIOUS_PDO_IDENTIFICATION_DESCRIPTION));
+                WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &scanDesc.Header);
+
+                iterStatus = WdfChildListRetrieveNextDevice(list, &iterator, &childDev, &childInfo);
+                if (!NT_SUCCESS(iterStatus) || iterStatus == STATUS_NO_MORE_ENTRIES) break;
+
+                if (wcscmp(scanDesc.ComName, rawBuffer) != 0) {
+                    (VOID)WdfChildListUpdateChildDescriptionAsMissing(list, &scanDesc.Header);
+                }
+            }
+            WdfChildListEndIteration(list, &iterator);
         }
 
         status = RtlStringCchCopyW(controllerContext->ComName,
