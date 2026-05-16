@@ -72,7 +72,20 @@ vSeriousEvtChildListCreateDevice(
     // matching "vSerious\COMx" and the bus driver itself owns all I/O on this
     // PDO — RawDevice makes that ownership explicit to KMDF and PnP, avoiding
     // "no function driver" WDF_VIOLATIONs.
-    status = WdfPdoInitAssignRawDevice(ChildInit, &GUID_DEVCLASS_VSERIOUS_RAW_PORT);
+    // Use GUID_DEVCLASS_PORTS so Win 7's PnP completes driver matching
+    // synchronously when the PDO is created. Microsoft's docs recommend a
+    // custom class for raw PDOs, but on Win 7 a private class GUID leaves
+    // the device in "Other devices" — vSeriousPort.inf's compat-ID match
+    // doesn't reliably fire, resulting in Code 31 ("Windows cannot load
+    // the drivers required for this device"). With GUID_DEVCLASS_PORTS:
+    //  - Win 7 immediately classifies as Ports, gets a COM port, works.
+    //  - Win 10 still merges with vSeriousPort.inf's metadata (no duplicate).
+    // The duplicate-PDO-on-activate problem that Microsoft's docs are
+    // warning about IS real on Win 7 but is solved here by (a) the driver-
+    // side child-list cleanup in IOCTL_VSERIOUS_SET_COM_NAME, (b) the
+    // sCristina-side WMI reuse logic, and (c) the installer-side ghost
+    // purge. With those three in place, GUID_DEVCLASS_PORTS is safe.
+    status = WdfPdoInitAssignRawDevice(ChildInit, &GUID_DEVCLASS_PORTS);
     if (!NT_SUCCESS(status)) {
         Trace(TRACE_LEVEL_ERROR, "ERROR: WdfPdoInitAssignRawDevice failed 0x%x", status);
         return status;
