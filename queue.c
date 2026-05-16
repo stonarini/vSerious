@@ -501,16 +501,17 @@ vSeriousControllerEvtIoDeviceControl(
                 WdfRequestComplete(savedRead, s);
                 break;
             }
-            if (bytesCopied > 0) {
-                WdfRequestCompleteWithInformation(savedRead, STATUS_SUCCESS, bytesCopied);
-            }
-            else {
-                // Buffer drained between get-available and read — re-park.
-                // Same queue, same device; the verifier accepts this because
-                // it's a manual-queue re-insertion, not a cross-queue forward.
-                (VOID)WdfRequestForwardToIoQueue(savedRead, childQc->ComReadQueue);
-                break;
-            }
+            // Complete unconditionally — see the matching comment in
+            // vSeriousDeviceEvtIoWrite. We are in the CONTROLLER's IOCTL
+            // dispatch context, but savedRead belongs to the CHILD PDO.
+            // Re-parking via WdfRequestForwardToIoQueue from this cross-
+            // device context trips KMDF's Vf_VerifyForwardRequest (bugcheck
+            // 0x7E, STATUS_BREAKPOINT). Cristina's BeginRead loop tolerates
+            // zero-byte completions and just submits another read, which
+            // re-parks itself via vSeriousDeviceEvtIoRead (intra-device,
+            // verifier-safe).
+            WdfRequestCompleteWithInformation(savedRead, STATUS_SUCCESS, bytesCopied);
+            if (bytesCopied == 0) break;
             RingBufferGetAvailableData(&childQc->RingBufferHwToPc, &availableData);
         }
         break;
@@ -992,15 +993,17 @@ vSeriousDeviceEvtIoWrite(
                 WdfRequestComplete(savedRequest, status);
                 break;
             }
-            if (bytesCopied > 0) {
-                WdfRequestCompleteWithInformation(savedRequest, STATUS_SUCCESS, bytesCopied);
-            }
-            else {
-                // Buffer drained between the get-available and the read.
-                // Re-park on the controller's queue (same-device forward).
-                (VOID)WdfRequestForwardToIoQueue(savedRequest, sdkReadQueue);
-                break;
-            }
+            // Complete unconditionally — even if bytesCopied is 0 (the race
+            // window: buffer drained between get-available and read). DO NOT
+            // try to re-park here: this dispatch context is the CHILD's
+            // EvtIoWrite, but savedRequest belongs to the CONTROLLER. The
+            // KMDF verifier breakpoints on cross-device forward
+            // (Vf_VerifyForwardRequest -> bugcheck 0x7E, STATUS_BREAKPOINT).
+            // sCristina's read loop tolerates zero-byte completions and just
+            // loops back; the next IOCTL_VSERIOUS_READ will re-park itself
+            // via line ~510 (which is intra-device and verifier-safe).
+            WdfRequestCompleteWithInformation(savedRequest, STATUS_SUCCESS, bytesCopied);
+            if (bytesCopied == 0) break;
             RingBufferGetAvailableData(&queueContext->RingBufferPcToHw, &availableData);
         }
     }
