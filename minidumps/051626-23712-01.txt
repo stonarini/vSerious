@@ -1,0 +1,185 @@
+
+************* Preparing the environment for Debugger Extensions Gallery repositories **************
+   ExtensionRepository : Implicit
+   UseExperimentalFeatureForNugetShare : true
+   AllowNugetExeUpdate : true
+   NonInteractiveNuget : true
+   AllowNugetMSCredentialProviderInstall : true
+   AllowParallelInitializationOfLocalRepositories : true
+
+   EnableRedirectToV8JsProvider : false
+
+   -- Configuring repositories
+      ----> Repository : LocalInstalled, Enabled: true
+      ----> Repository : UserExtensions, Enabled: true
+
+>>>>>>>>>>>>> Preparing the environment for Debugger Extensions Gallery repositories completed, duration 0.094 seconds
+
+************* Waiting for Debugger Extensions Gallery to Initialize **************
+
+>>>>>>>>>>>>> Waiting for Debugger Extensions Gallery to Initialize completed, duration 0.844 seconds
+   ----> Repository : UserExtensions, Enabled: true, Packages count: 0
+   ----> Repository : LocalInstalled, Enabled: true, Packages count: 29
+
+Microsoft (R) Windows Debugger Version 10.0.26100.4188 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+
+Loading Dump File [E:\051626-23712-01.dmp]
+Mini Kernel Dump File: Only registers and stack trace are available
+
+Symbol search path is: srv*
+Executable search path is: 
+Windows 7 Kernel Version 7601 (Service Pack 1) MP (2 procs) Free x64
+Product: WinNt, suite: TerminalServer SingleUserTS
+Edition build lab: 7601.24384.amd64fre.win7sp1_ldr_escrow.190220-1800
+Kernel base = 0xfffff800`02e5c000 PsLoadedModuleList = 0xfffff800`03095c90
+Debug session time: Sat May 16 04:28:58.775 2026 (UTC - 4:00)
+System Uptime: 0 days 0:02:26.351
+Loading Kernel Symbols
+...............................................................
+................................................................
+.....................
+Loading User Symbols
+
+Loading unloaded module list
+...
+For analysis of this file, run !analyze -v
+*** WARNING: Unable to verify timestamp for vSerious.sys
+1: kd> !analyze -v
+*******************************************************************************
+*                                                                             *
+*                        Bugcheck Analysis                                    *
+*                                                                             *
+*******************************************************************************
+
+SYSTEM_THREAD_EXCEPTION_NOT_HANDLED (7e)
+This is a very common BugCheck.  Usually the exception address pinpoints
+the driver/function that caused the problem.  Always note this address
+as well as the link date of the driver/image that contains this address.
+Arguments:
+Arg1: ffffffff80000003, The exception code that was not handled
+Arg2: fffff8800753c02e, The address that the exception occurred at
+Arg3: fffff88002fecfc8, Exception Record Address
+Arg4: fffff88002fec830, Context Record Address
+
+Debugging Details:
+------------------
+
+
+KEY_VALUES_STRING: 1
+
+    Key  : Analysis.CPU.mSec
+    Value: 3077
+
+    Key  : Analysis.Elapsed.mSec
+    Value: 22593
+
+    Key  : Analysis.IO.Other.Mb
+    Value: 3
+
+    Key  : Analysis.IO.Read.Mb
+    Value: 0
+
+    Key  : Analysis.IO.Write.Mb
+    Value: 12
+
+    Key  : Analysis.Init.CPU.mSec
+    Value: 4421
+
+    Key  : Analysis.Init.Elapsed.mSec
+    Value: 52368
+
+    Key  : Analysis.Memory.CommitPeak.Mb
+    Value: 79
+
+    Key  : Bugcheck.Code.LegacyAPI
+    Value: 0x1000007e
+
+    Key  : Failure.Bucket
+    Value: 0x7E_80000003_vSerious+902e
+
+    Key  : Failure.Hash
+    Value: {efefeae6-b97e-0d98-d5d4-a48f1c79cd46}
+
+    Key  : Hypervisor.Flags.Value
+    Value: 0
+
+    Key  : Hypervisor.Flags.ValueHex
+    Value: 0
+
+    Key  : WER.OS.Branch
+    Value: win7sp1_ldr_escrow
+
+    Key  : WER.OS.Version
+    Value: 7.1.7601.24384
+
+
+BUGCHECK_CODE:  7e
+
+BUGCHECK_P1: ffffffff80000003
+
+BUGCHECK_P2: fffff8800753c02e
+
+BUGCHECK_P3: fffff88002fecfc8
+
+BUGCHECK_P4: fffff88002fec830
+
+FILE_IN_CAB:  051626-23712-01.dmp
+
+EXCEPTION_RECORD:  fffff88002fecfc8 -- (.exr 0xfffff88002fecfc8)
+Cannot read Exception record @ fffff88002fecfc8
+
+CONTEXT:  fffff88002fec830 -- (.cxr 0xfffff88002fec830)
+rax=00002b992ddfa232 rbx=fffffa80036db000 rcx=0000000000000006
+rdx=fffffa80036db000 rsi=fffffa80036db000 rdi=fffffa800caed270
+rip=fffff8800753c02e rsp=fffff88002fed208 rbp=0000000000000000
+ r8=fffffa8003f84000  r9=0000000000000000 r10=0000000000000000
+r11=0000000000000000 r12=0000000000000001 r13=ffffffff80000b1c
+r14=fffffa800d208160 r15=000000000000001c
+iopl=0         nv up ei pl zr na po nc
+cs=0010  ss=0018  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+vSerious+0x902e:
+fffff880`0753c02e cc              int     3
+Resetting default scope
+
+CUSTOMER_CRASH_COUNT:  1
+
+PROCESS_NAME:  System
+
+ERROR_CODE: (NTSTATUS) 0x80000003 - {EXCEPTION}  Breakpoint  A breakpoint has been reached.
+
+EXCEPTION_CODE_STR:  80000003
+
+EXCEPTION_PARAMETER1:  0000000000000000
+
+EXCEPTION_STR:  0x80000003
+
+STACK_TEXT:  
+fffff880`02fed208 fffff880`07536c45     : 00000000`00000000 00000000`00000000 00000000`00000002 fffff880`02fed3a0 : vSerious+0x902e
+fffff880`02fed210 00000000`00000000     : 00000000`00000000 00000000`00000002 fffff880`02fed3a0 00000000`0000000e : vSerious+0x3c45
+
+
+SYMBOL_NAME:  vSerious+902e
+
+MODULE_NAME: vSerious
+
+IMAGE_NAME:  vSerious.sys
+
+STACK_COMMAND:  .cxr 0xfffff88002fec830 ; kb
+
+FAILURE_BUCKET_ID:  0x7E_80000003_vSerious+902e
+
+OS_VERSION:  7.1.7601.24384
+
+BUILDLAB_STR:  win7sp1_ldr_escrow
+
+OSPLATFORM_TYPE:  x64
+
+OSNAME:  Windows 7
+
+FAILURE_ID_HASH:  {efefeae6-b97e-0d98-d5d4-a48f1c79cd46}
+
+Followup:     MachineOwner
+---------
+
